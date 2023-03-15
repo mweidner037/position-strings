@@ -204,26 +204,27 @@ export class PositionSource {
         // have been used already (i.e., the node matches
         // this.lastValueIndices).
         let success = false;
-        const lastComma = leftFixed.lastIndexOf(",");
-        const secondLastComma = leftFixed.lastIndexOf(",", lastComma - 1);
+        const lastCounterChar = getLastCounterChar(leftFixed);
+        const lastComma = leftFixed.lastIndexOf(",", lastCounterChar);
+        // TODO: this will break if someone else's ID is a suffix of ours. (Also in master.)
         const leafSender = leftFixed.slice(
-          secondLastComma - this.ID.length,
-          secondLastComma
+          lastComma - this.ID.length,
+          lastComma
         );
         if (leafSender === this.ID) {
-          const leafCounter = parseNumber(
-            leftFixed.slice(secondLastComma + 1, lastComma)
+          const leafCounter = parseCounter(
+            leftFixed.slice(lastComma + 1, lastCounterChar + 1)
           );
-          const leafValueIndex = parseNumber(
-            leftFixed.slice(lastComma + 1, -1)
+          const leafValueIndex = parseValueIndex(
+            leftFixed.slice(lastCounterChar + 1, -1)
           );
           if (this.lastValueIndices[leafCounter] === leafValueIndex) {
             // Success; reuse a's leaf waypoint.
             const valueIndex = lexSucc(leafValueIndex);
             this.lastValueIndices[leafCounter] = valueIndex;
             ans =
-              leftFixed.slice(0, lastComma + 1) +
-              stringifyNumber(valueIndex) +
+              leftFixed.slice(0, lastCounterChar + 1) +
+              stringifyValueIndex(valueIndex) +
               "r";
             success = true;
           }
@@ -246,8 +247,17 @@ export class PositionSource {
   private newWaypoint(): string {
     const counter = this.lastValueIndices.length;
     this.lastValueIndices.push(0);
-    return `${this.ID},${stringifyNumber(counter)},0r`;
+    return `${this.ID},${stringifyCounter(counter)}0r`;
   }
+}
+
+function getLastCounterChar(s: string): number {
+  // Skips last char b/c we know that's r or l.
+  for (let i = s.length - 2; i >= 0; i--) {
+    if (s.charCodeAt(i) >= 97) return i;
+  }
+  assert(false, "lastLowerAlpha not found", s);
+  return -1;
 }
 
 /**
@@ -255,15 +265,39 @@ export class PositionSource {
  * with 'l' and 'r'. This works with lexSucc since the base36
  * chars are lexicographically ordered by value.
  */
-function stringifyNumber(n: number): string {
+function stringifyValueIndex(n: number): string {
   return n.toString(36).toUpperCase();
 }
 
 /**
  * Inverse of stringifyNumber.
  */
-function parseNumber(s: string): number {
+function parseValueIndex(s: string): number {
   return Number.parseInt(s.toLowerCase(), 36);
+}
+
+/**
+ * Use Base 26 with all lowercase letters, so it's greater than all
+ * valueIndex chars. This gives us the usual guarantee:
+ * if counter1 < counter2, then counter1valueIndex1 < counter2valueIndex2,
+ * even if counter1 is a prefix of counter2.
+ */
+function stringifyCounter(n: number): string {
+  if (n === 0) return "a";
+  const ans: number[] = [];
+  while (n > 0) {
+    ans.unshift((n % 26) + 97);
+    n = Math.floor(n / 26);
+  }
+  return String.fromCharCode(...ans);
+}
+
+function parseCounter(s: string): number {
+  let ans = 0;
+  for (let i = 0; i < s.length; i++) {
+    ans = 26 * ans + (s.charCodeAt(i) - 97);
+  }
+  return ans;
 }
 
 const log36 = Math.log(36);

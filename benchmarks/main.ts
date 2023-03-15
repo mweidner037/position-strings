@@ -93,6 +93,14 @@ interface PositionMetric {
   valueIndexCount: number;
 }
 
+function getLastCounterChar(s: string): number {
+  // Skips last char b/c we know that's r or l.
+  for (let i = s.length - 2; i >= 0; i--) {
+    if (s.charCodeAt(i) >= 97) return i;
+  }
+  throw new Error("lastLowerAlpha not found " + s);
+}
+
 function parseValueIndex(s: string): number {
   return Number.parseInt(s.toLowerCase(), 36);
 }
@@ -104,9 +112,9 @@ function getMetric(position: string): PositionMetric {
     if (char === ",") commas++;
   }
   const nodes = commas / 2;
-  // Get valueIndex: after last comma, before last R.
-  const lastComma = position.lastIndexOf(",");
-  const valueIndex = parseValueIndex(position.slice(lastComma + 1, -1));
+  // Get valueIndex: after last counter char, before last r.
+  const lastCounterChar = getLastCounterChar(position);
+  const valueIndex = parseValueIndex(position.slice(lastCounterChar + 1, -1));
 
   return {
     length: position.length,
