@@ -17,7 +17,7 @@ export class IDs {
   static readonly DEFAULT_CHARS: string =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
-  // Rationale for value 8:
+  // Rationale for value 8: (TODO: 6)
   // Each character of the ID gives us ~6 bits of entropy,
   //  for a total of ~48 bits.  This gives a < 1%
   // probability that two connected `PositionSource`s
@@ -29,7 +29,7 @@ export class IDs {
   /**
    * The default length of an ID, in characters.
    */
-  static readonly DEFAULT_LENGTH: number = 8;
+  static readonly DEFAULT_LENGTH: number = 6;
 
   /**
    * Returns a cryptographically random ID made of alphanumeric characters.
