@@ -106,12 +106,12 @@ function parseValueIndex(s: string): number {
 }
 
 function getMetric(position: string): PositionMetric {
-  // Nodes = # commas / 2.
+  // Nodes = # commas.
   let commas = 0;
   for (const char of position) {
     if (char === ",") commas++;
   }
-  const nodes = commas / 2;
+  const nodes = commas;
   // Get valueIndex: after last counter char, before last r.
   const lastCounterChar = getLastCounterChar(position);
   const valueIndex = parseValueIndex(position.slice(lastCounterChar + 1, -1));
