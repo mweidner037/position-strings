@@ -7,6 +7,10 @@ import { assertIsOrdered } from "./util";
 // place, later resurrect & make sure not equal).
 // TODO: test that tries to create a left child of every node (at least 36),
 // to test new parity strategy.
+// TODO: tests with several users trying to create at same position,
+// including ones represented in node already,
+// to check short names.
+// TODO: positions with many long names, to test beyond-10 case.
 
 describe("manual", () => {
   const rng = seedrandom("42");

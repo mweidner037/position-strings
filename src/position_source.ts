@@ -218,7 +218,7 @@ export class PositionSource {
         ) {
           // Reuse.
           const valueIndex = lexSucc(lastValueIndex);
-          ans = prefix + stringifyValueIndex(valueIndex);
+          ans = prefix + stringifyBase52(valueIndex);
           this.lastValueIndices.set(prefix, valueIndex);
         } else {
           // New waypoint.
@@ -238,7 +238,7 @@ export class PositionSource {
   private withNewWaypoint(ancestor: string): string {
     const waypoint = this.newWaypointName(ancestor);
     this.lastValueIndices.set(ancestor + waypoint, 1);
-    return ancestor + waypoint + stringifyValueIndex(1);
+    return ancestor + waypoint + stringifyBase52(1);
   }
 
   /**
@@ -270,26 +270,41 @@ export class PositionSource {
 }
 
 /**
- * Base 36 encoding. This works with lexSucc since the base36
+ * Base 52 encoding (letters). This works with lexSucc since the base52
  * chars are lexicographically ordered by value.
  */
-function stringifyValueIndex(n: number): string {
-  return n.toString(36);
+function stringifyBase52(n: number): string {
+  if (n === 0) return "A";
+  const codes: number[] = [];
+  while (n > 0) {
+    const digit = n % 52;
+    codes.unshift((digit >= 26 ? 71 : 65) + digit);
+    n = Math.floor(n / 52);
+  }
+  return String.fromCharCode(...codes);
 }
 
-function parseValueIndex(s: string): number {
-  return Number.parseInt(s, 36);
+function parseBase52(s: string): number {
+  let n = 0;
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    const digit = code - (code >= 97 ? 71 : 65);
+    n = 52 * n + digit;
+  }
+  return n;
 }
 
 /**
- * Base 36, except for last digit, which is base 26 using
- * capital letters. This makes it easy to find the end when it
- * is followed by a base36 (= digits & lowercase letters) valueIndex.
+ * Base 52, except for last digit, which is base 10 using
+ * digits. This makes it easy to find the end when it
+ * is followed by a base52 (letters) valueIndex.
  */
 function stringifyCounter(n: number): string {
-  if (n < 26) return String.fromCharCode(65 + n);
+  if (n < 10) return String.fromCharCode(48 + n);
   else {
-    return Math.floor(n / 26).toString(36) + String.fromCharCode(65 + (n % 26));
+    return (
+      stringifyBase52(Math.floor(n / 10)) + String.fromCharCode(48 + (n % 10))
+    );
   }
 }
 
@@ -297,11 +312,11 @@ function stringifyCounter(n: number): string {
  * Returns position's prefix (TODO: define: part through last waypoint name).
  */
 function getPrefix(position: string): string {
-  // Last waypoint char is the last '.' or capital letter.
+  // Last waypoint char is the last '.' or digit.
   // We know it's not the very last char (always a valueIndex).
   for (let i = position.length - 2; i >= 0; i--) {
     const char = position.charAt(i);
-    if (char === "." || (char >= "A" && char <= "Z")) {
+    if (char === "." || ("0" <= char && char <= "9")) {
       // i is the last waypoint char, i.e., the end of the prefix.
       return position.slice(0, i + 1);
     }
@@ -318,13 +333,13 @@ function getPrefix(position: string): string {
  * of a position.
  */
 function leftVersion(position: string) {
-  const last = parseValueIndex(position.charAt(position.length - 1));
-  // last should be an odd base36 number. Subtract 1, making it even.
+  const last = parseBase52(position.charAt(position.length - 1));
+  // last should be an odd base52 number. Subtract 1, making it even.
   assert(last % 2 === 1, "Bad side marker (not a position?)", last, position);
-  return position.slice(0, -1) + stringifyValueIndex(last - 1);
+  return position.slice(0, -1) + stringifyBase52(last - 1);
 }
 
-const log36 = Math.log(36);
+const log52 = Math.log(52);
 
 /**
  * Returns the successor of n in an enumeration of a special
@@ -358,14 +373,14 @@ const log36 = Math.log(36);
  * values, so we never "reach 1" (overflow to d+1 digits when
  * we meant to use d digits).
  *
- * TODO: odds only now
+ * TODO: odds only now; 36 -> 52
  */
 function lexSucc(n: number): number {
   // OPT: learn d from the stringified number.
-  const d = n === 0 ? 1 : Math.floor(Math.log(n) / log36) + 1;
-  if (n === Math.pow(36, d) - Math.pow(18, d) - 1) {
-    // First step is a new length: n -> (n + 1) * 36 + 1
-    return (n + 1) * 36 + 1;
+  const d = n === 0 ? 1 : Math.floor(Math.log(n) / log52) + 1;
+  if (n === Math.pow(52, d) - Math.pow(26, d) - 1) {
+    // First step is a new length: n -> (n + 1) * 52 + 1
+    return (n + 1) * 52 + 1;
   } else {
     // n -> n + 2
     return n + 2;

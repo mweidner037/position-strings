@@ -96,11 +96,11 @@ interface PositionMetric {
 }
 
 function getLastWaypointChar(position: string): number {
-  // Last waypoint char is the last '.' or capital letter.
+  // Last waypoint char is the last '.' or digit.
   // We know it's not the very last char (always a valueIndex).
   for (let i = position.length - 2; i >= 0; i--) {
     const char = position.charAt(i);
-    if (char === "." || (char >= "A" && char <= "Z")) {
+    if (char === "." || ("0" <= char && char <= "9")) {
       // i is the last waypoint char, i.e., the end of the prefix.
       return i;
     }
@@ -108,8 +108,14 @@ function getLastWaypointChar(position: string): number {
   throw new Error("lastWaypointChar not found: " + position);
 }
 
-function parseValueIndex(s: string): number {
-  return Number.parseInt(s, 36);
+function parseBase52(s: string): number {
+  let n = 0;
+  for (let i = 0; i < s.length; i++) {
+    const code = s.charCodeAt(i);
+    const digit = code - (code >= 97 ? 71 : 65);
+    n = 52 * n + digit;
+  }
+  return n;
 }
 
 function getMetric(position: string): PositionMetric {
@@ -122,7 +128,7 @@ function getMetric(position: string): PositionMetric {
 
   // Get valueIndex: after last waypoint char.
   const lastWaypointChar = getLastWaypointChar(position);
-  const valueIndex = parseValueIndex(position.slice(lastWaypointChar + 1));
+  const valueIndex = parseBase52(position.slice(lastWaypointChar + 1));
 
   return {
     length: position.length,
@@ -144,7 +150,7 @@ function nodeCount(position: string): number {
     else if (char === ".") {
       count++;
       inLongName = false;
-    } else if (!inLongName && "A" <= char && char <= "Z") {
+    } else if (!inLongName && "0" <= char && char <= "9") {
       count++;
     }
   }
@@ -155,13 +161,13 @@ function nodeCount(position: string): number {
  * Returns n's index in the lexSucc output sequence.
  */
 function lexSuccCount(n: number): number {
-  const d = n === 0 ? 1 : Math.floor(Math.log(n) / Math.log(36)) + 1;
-  // First d-digit number is 36^d - 36 * 18^(d-1); check how far
+  const d = n === 0 ? 1 : Math.floor(Math.log(n) / Math.log(52)) + 1;
+  // First d-digit number is 52^d - 52 * 26^(d-1); check how far
   // we are from there (= index in d-digit sequence)
-  let ans = n - (Math.pow(36, d) - 36 * Math.pow(18, d - 1));
-  // Previous digits d2 get 18^d2 digits each.
+  let ans = n - (Math.pow(52, d) - 52 * Math.pow(26, d - 1));
+  // Previous digits d2 get 26^d2 digits each.
   for (let d2 = 1; d2 < d; d2++) {
-    ans += Math.pow(18, d2);
+    ans += Math.pow(26, d2);
   }
   // Sequence uses odds only, so discount that.
   return (ans - 1) / 2;
