@@ -108,12 +108,9 @@ export class IDs {
    * Throws an error if `ID` does not satisfy the requirements from
    * `PositionSource`'s constructor:
    * - All characters are lexicographically greater than `','` (code point 44).
-   * - The first character is lexicographically less than `'~'` (code point 126).
+   * - The first character is lexicographically less than `'~'` (code point 126). (TODO)
    */
   static validate(ID: string): void {
-    for (const char of ID) {
-      precond(char > ",", "All ID chars must be greater than ',':", ID);
-    }
     precond(ID < LastInternal, "ID must be less than", LastInternal, ":", ID);
   }
 }

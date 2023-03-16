@@ -23,14 +23,21 @@ function run(ops?: number, rotateFreq?: number) {
   console.log();
 
   const rng = seedrandom("42");
-  let source = new PositionSource({ ID: IDs.pseudoRandom(rng) });
+  function newID() {
+    // Replace the last char with ',' so that getMetric() can count
+    // the number of nodes in a position.
+    return IDs.pseudoRandom(rng, { length: IDs.DEFAULT_LENGTH - 1 }) + ",";
+  }
+  let source = new PositionSource({
+    ID: newID(),
+  });
   let list = createRBTree<string, string>();
   // In order of creation, so we can watch time trends.
   const metrics: PositionMetric[] = [];
 
   for (let i = 0; i < (ops ?? edits.length); i++) {
     if (rotateFreq && i > 0 && i % rotateFreq === 0) {
-      source = new PositionSource({ ID: IDs.pseudoRandom(rng) });
+      source = new PositionSource({ ID: newID() });
     }
     const edit = edits[i];
     if (edit[2] !== undefined) {
@@ -106,7 +113,7 @@ function parseValueIndex(s: string): number {
 }
 
 function getMetric(position: string): PositionMetric {
-  // Nodes = # commas.
+  // Nodes = # commas, since we end each ID with one.
   let commas = 0;
   for (const char of position) {
     if (char === ",") commas++;

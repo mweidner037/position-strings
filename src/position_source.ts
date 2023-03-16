@@ -146,7 +146,11 @@ export class PositionSource {
    * all PositionSources whose positions may be compared to ours. This
    * includes past PositionSources, even if they correspond to the same
    * user/device.
-   * - All characters are lexicographically greater than `','` (code point 44).
+   * - It is also not a prefix of any other ID. You can accomplish this using
+   * a consistent length (like the default) or by always ending with a special
+   * character not used otherwise (e.g. `','`). Note that you will need to do
+   * the latter if you start using a consistent length but later change it
+   * (within the same document).
    * - The first character is lexicographically less than `'~'` (code point 126).
    *
    * If `options.ID` contains non-alphanumeric characters, created positions
@@ -239,7 +243,7 @@ export class PositionSource {
    */
   private newWaypoint(): string {
     const counter = this.lastValueIndices.size;
-    return `${this.ID},${stringifyCounter(counter)}0r`;
+    return `${this.ID}${stringifyCounter(counter)}0r`;
   }
 }
 
