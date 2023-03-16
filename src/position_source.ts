@@ -120,10 +120,12 @@ export class PositionSource {
   readonly ID: string;
 
   /**
-   * Maps counter to the most recently used
-   * valueIndex for the waypoint (this.ID, counter).
+   * For each position that uses the greatest valueIndex for one of
+   * our waypoints, maps that position to its valueIndex (as a number).
+   *
+   * This map has size equal to our number of waypoints.
    */
-  private lastValueIndices: number[] = [];
+  private lastValueIndices = new Map<string, number>();
 
   /**
    * Constructs a new PositionSource.
@@ -186,6 +188,7 @@ export class PositionSource {
     const rightFixed = right === PositionSource.LAST ? null : right;
 
     let ans: string;
+    let isNewWaypoint = true;
 
     if (
       rightFixed !== null &&
@@ -198,42 +201,32 @@ export class PositionSource {
       if (leftFixed === null) {
         ans = this.newWaypoint();
       } else {
-        // Check if we can reuse right's leaf waypoint.
-        // For this to happen, right's leaf waypoint must have also
-        // been sent by us, and its next valueIndex must not
-        // have been used already (i.e., the node matches
-        // this.lastValueIndices).
-        let success = false;
-        const lastCounterChar = getLastCounterChar(leftFixed);
-        const lastComma = leftFixed.lastIndexOf(",", lastCounterChar);
-        // TODO: this will break if someone else's ID is a suffix of ours. (Also in master.)
-        const leafSender = leftFixed.slice(
-          lastComma - this.ID.length,
-          lastComma
-        );
-        if (leafSender === this.ID) {
-          const leafCounter = parseCounter(
-            leftFixed.slice(lastComma + 1, lastCounterChar + 1)
+        // TODO: on master: below comment said right instead of left (2x).
+        // Check if we can reuse left's leaf waypoint.
+        const lastValueIndex = this.lastValueIndices.get(leftFixed);
+        if (lastValueIndex !== undefined) {
+          // left is the last (most recent) position for one of our waypoints;
+          // reuse the waypoint, just increasing valueIndex.
+          const [valueIndex, lastLength] = lexSucc(lastValueIndex);
+          const beforeValueIndex = leftFixed.slice(
+            0,
+            // Trim last 'r' and lastValueIndex.
+            -(1 + lastLength)
           );
-          const leafValueIndex = parseValueIndex(
-            leftFixed.slice(lastCounterChar + 1, -1)
-          );
-          if (this.lastValueIndices[leafCounter] === leafValueIndex) {
-            // Success; reuse a's leaf waypoint.
-            const valueIndex = lexSucc(leafValueIndex);
-            this.lastValueIndices[leafCounter] = valueIndex;
-            ans =
-              leftFixed.slice(0, lastCounterChar + 1) +
-              stringifyValueIndex(valueIndex) +
-              "r";
-            success = true;
-          }
-        }
-        if (!success) {
-          // Failure; cannot reuse left's leaf waypoint.
+          ans = beforeValueIndex + stringifyValueIndex(valueIndex) + "r";
+
+          isNewWaypoint = false;
+          this.lastValueIndices.delete(leftFixed);
+          this.lastValueIndices.set(ans, valueIndex);
+        } else {
+          // Create a new leaf.
           ans = leftFixed + this.newWaypoint();
         }
       }
+    }
+
+    if (isNewWaypoint) {
+      this.lastValueIndices.set(ans, 0);
     }
 
     assert(left < ans! && ans! < right, "Bad position:", left, ans!, right);
@@ -245,19 +238,9 @@ export class PositionSource {
    * updating this.lastValueIndices accordingly.
    */
   private newWaypoint(): string {
-    const counter = this.lastValueIndices.length;
-    this.lastValueIndices.push(0);
+    const counter = this.lastValueIndices.size;
     return `${this.ID},${stringifyCounter(counter)}0r`;
   }
-}
-
-function getLastCounterChar(s: string): number {
-  // Skips last char b/c we know that's r or l.
-  for (let i = s.length - 2; i >= 0; i--) {
-    if (s.charCodeAt(i) >= 97) return i;
-  }
-  assert(false, "lastLowerAlpha not found", s);
-  return -1;
 }
 
 /**
@@ -267,13 +250,6 @@ function getLastCounterChar(s: string): number {
  */
 function stringifyValueIndex(n: number): string {
   return n.toString(36).toUpperCase();
-}
-
-/**
- * Inverse of stringifyNumber.
- */
-function parseValueIndex(s: string): number {
-  return Number.parseInt(s.toLowerCase(), 36);
 }
 
 /**
@@ -292,19 +268,12 @@ function stringifyCounter(n: number): string {
   return String.fromCharCode(...ans);
 }
 
-function parseCounter(s: string): number {
-  let ans = 0;
-  for (let i = 0; i < s.length; i++) {
-    ans = 26 * ans + (s.charCodeAt(i) - 97);
-  }
-  return ans;
-}
-
 const log36 = Math.log(36);
 
 /**
  * Returns the successor of n in an enumeration of a special
- * set of numbers.
+ * set of numbers. Also returns the number of base36 digits
+ * of n.
  *
  * That enumeration has the following properties:
  * 1. Each number is a nonnegative integer (however, not all
@@ -334,13 +303,13 @@ const log36 = Math.log(36);
  * values, so we never "reach 1" (overflow to d+1 digits when
  * we meant to use d digits).
  */
-function lexSucc(n: number): number {
+function lexSucc(n: number): [succ: number, d: number] {
   const d = n === 0 ? 1 : Math.floor(Math.log(n) / log36) + 1;
   if (n === Math.pow(36, d) - Math.pow(18, d) - 1) {
     // n -> (n + 1) * 36
-    return (n + 1) * 36;
+    return [(n + 1) * 36, d];
   } else {
     // n -> n + 1
-    return n + 1;
+    return [n + 1, d];
   }
 }
