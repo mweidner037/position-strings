@@ -88,7 +88,7 @@ import { assert, LastInternal, precond } from "./util";
  * not linearly.
  *
  * Position strings are printable ASCII. Specifically, they
- * contain alphanumeric characters and `','`.
+ * contain alphanumeric characters, `','`, and `'.'`.
  * Also, the special string `PositionSource.LAST` is `'~'`.
  *
  * Further reading:
@@ -119,9 +119,10 @@ export class PositionSource {
    */
   readonly ID: string;
   /**
-   * The waypoint name corresonding to our ID (long form).
+   * `{ID}.`, i.e., our waypoint's long name minus the leading ','
+   * (which is omitted in the beginning).
    */
-  private readonly idName: string;
+  private readonly idPlusDot: string;
 
   /**
    * For each waypoint that we created, maps a prefix for that
@@ -151,24 +152,18 @@ export class PositionSource {
    * all PositionSources whose positions may be compared to ours. This
    * includes past PositionSources, even if they correspond to the same
    * user/device.
-   * - It is also not a prefix of any other ID. You can accomplish this using
-   * a consistent length (like the default) or by always ending with a special
-   * character not used otherwise (e.g. `','`). Note that you will need to do
-   * the latter if you start using a consistent length but later change it
-   * (within the same document).
+   * - It does not contain `'.'` or `','`.
    * - The first character is lexicographically less than `'~'` (code point 126).
    *
    * If `options.ID` contains non-alphanumeric characters, created positions
-   * will contain those characters and `','`.
+   * will contain those characters in addition to the usual.
    */
   constructor(options?: { ID?: string }) {
     if (options?.ID !== undefined) {
       IDs.validate(options.ID);
     }
     this.ID = options?.ID ?? IDs.random();
-    // OPT: flag where you promise to use fixed ID lengths, then we get
-    // rid of the comma after ID? Though makes createBetween trickier.
-    this.idName = `,${this.ID}.`;
+    this.idPlusDot = `${this.ID}.`;
   }
 
   /**
@@ -251,21 +246,25 @@ export class PositionSource {
    */
   private newWaypointName(ancestor: string): string {
     // See if our ID appears already in ancestor.
-    const existing = ancestor.lastIndexOf(this.idName);
-    if (existing === -1) {
-      // No existing occurrence; use idName.
-      // OPT: skip ',' at very beginning (ancestor is "").
-      return this.idName;
-    } else {
+    const existing = ancestor.lastIndexOf(this.idPlusDot);
+    const valid =
+      existing !== -1 &&
+      (existing === 0 || ancestor.charAt(existing - 1) === ",");
+    if (valid) {
       // Find the index of existing among the long-form (idName)
       // waypoints, counting backwards. Here we use the fact
-      // that each idName starts with ',', and ',' does not appear otherwise (TODO).
-      let index = 0;
-      for (let i = existing + 1; i < ancestor.length; i++) {
-        if (ancestor.charAt(i) === ",") index++;
+      // that each idName ends with '.', and '.' does not appear otherwise.
+      let index = -1;
+      for (let i = existing; i < ancestor.length; i++) {
+        if (ancestor.charAt(i) === ".") index++;
       }
       // Waypoint name is index interpreted as a "counter".
       return stringifyCounter(index);
+    } else {
+      // No existing occurrence; use `,${ID}.`, unless
+      // its the beginning, in which case lose the '.'.
+      if (ancestor === "") return this.idPlusDot;
+      else return "," + this.idPlusDot;
     }
   }
 }
