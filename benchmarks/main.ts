@@ -96,11 +96,11 @@ interface PositionMetric {
 }
 
 function getLastWaypointChar(position: string): number {
-  // Last waypoint char is the last '.' or digit.
+  // Last waypoint char is the last ',' or digit.
   // We know it's not the very last char (always a valueIndex).
   for (let i = position.length - 2; i >= 0; i--) {
     const char = position.charAt(i);
-    if (char === "." || ("0" <= char && char <= "9")) {
+    if (char === "," || ("0" <= char && char <= "9")) {
       // i is the last waypoint char, i.e., the end of the prefix.
       return i;
     }
@@ -119,10 +119,10 @@ function parseBase52(s: string): number {
 }
 
 function getMetric(position: string): PositionMetric {
-  // Nodes = # periods, since we end each ID with one.
+  // Nodes = # commas, since we end each ID with one.
   let periods = 0;
   for (const char of position) {
-    if (char === ".") periods++;
+    if (char === ",") periods++;
   }
   const longNodes = periods;
 
@@ -140,19 +140,19 @@ function getMetric(position: string): PositionMetric {
 
 function nodeCount(position: string): number {
   // One node per:
-  // - '.' (end of a long name)
-  // - Capital letter outside of a long name
+  // - ',' (end of a long name)
+  // - Digit outside of a long name
   // (end of a short name).
   let count = 0;
-  let inLongName = true;
-  for (const char of position) {
-    if (char === ",") inLongName = true;
-    else if (char === ".") {
+  for (let i = position.length - 1; i >= 0; i--) {
+    const char = position.charAt(i);
+    if (char === ",") {
+      // End of a long name.
       count++;
-      inLongName = false;
-    } else if (!inLongName && "0" <= char && char <= "9") {
-      count++;
-    }
+      // Skip the rest of the long name in case in contains
+      // a non-short-name digit.
+      i -= IDs.DEFAULT_LENGTH;
+    } else if ("0" <= char && char <= "9") count++;
   }
   return count;
 }

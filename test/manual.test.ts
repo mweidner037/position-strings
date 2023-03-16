@@ -29,8 +29,8 @@ describe("manual", () => {
     describe("numeric ID", () => {
       testSingleUser("0");
     });
-    describe("empty ID", () => {
-      testSingleUser("");
+    describe("dot ID", () => {
+      testSingleUser(".");
     });
   });
 
@@ -47,8 +47,8 @@ describe("manual", () => {
     describe("numeric IDs", () => {
       testTwoUsers("57834", "00143");
     });
-    describe("random and empty IDs", () => {
-      testTwoUsers(randomAlice, "");
+    describe("random and dot IDs", () => {
+      testTwoUsers(randomAlice, ".");
     });
   });
 });

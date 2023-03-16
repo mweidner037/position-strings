@@ -119,10 +119,9 @@ export class PositionSource {
    */
   readonly ID: string;
   /**
-   * `{ID}.`, i.e., our waypoint's long name minus the leading ','
-   * (which is omitted in the beginning).
+   * Our waypoint's long name: `${ID},`.
    */
-  private readonly idPlusDot: string;
+  private readonly idName: string;
 
   /**
    * For each waypoint that we created, maps a prefix for that
@@ -152,7 +151,10 @@ export class PositionSource {
    * all PositionSources whose positions may be compared to ours. This
    * includes past PositionSources, even if they correspond to the same
    * user/device.
-   * - It does not contain `'.'` or `','`.
+   * - TODO: suffix uniqueness, e.g. same-length or put '.' at beginning
+   * (or multiple lengths of randomness if you're okay with the lower-length's
+   * odds). Needed for newWaypointName to avoid possible duplicates.
+   * - It does not contain `','`.
    * - The first character is lexicographically less than `'~'` (code point 126).
    *
    * If `options.ID` contains non-alphanumeric characters, created positions
@@ -163,7 +165,7 @@ export class PositionSource {
       IDs.validate(options.ID);
     }
     this.ID = options?.ID ?? IDs.random();
-    this.idPlusDot = `${this.ID}.`;
+    this.idName = `${this.ID},`;
   }
 
   /**
@@ -246,26 +248,18 @@ export class PositionSource {
    */
   private newWaypointName(ancestor: string): string {
     // See if our ID appears already in ancestor.
-    const existing = ancestor.lastIndexOf(this.idPlusDot);
-    const valid =
-      existing !== -1 &&
-      (existing === 0 || ancestor.charAt(existing - 1) === ",");
-    if (valid) {
+    const existing = ancestor.lastIndexOf(this.idName);
+    if (existing !== -1) {
       // Find the index of existing among the long-form (idName)
       // waypoints, counting backwards. Here we use the fact
-      // that each idName ends with '.', and '.' does not appear otherwise.
+      // that each idName ends with ',', and ',' does not appear otherwise.
       let index = -1;
       for (let i = existing; i < ancestor.length; i++) {
-        if (ancestor.charAt(i) === ".") index++;
+        if (ancestor.charAt(i) === ",") index++;
       }
       // Waypoint name is index interpreted as a "counter".
       return stringifyCounter(index);
-    } else {
-      // No existing occurrence; use `,${ID}.`, unless
-      // its the beginning, in which case lose the '.'.
-      if (ancestor === "") return this.idPlusDot;
-      else return "," + this.idPlusDot;
-    }
+    } else return this.idName;
   }
 }
 
@@ -316,7 +310,7 @@ function getPrefix(position: string): string {
   // We know it's not the very last char (always a valueIndex).
   for (let i = position.length - 2; i >= 0; i--) {
     const char = position.charAt(i);
-    if (char === "." || ("0" <= char && char <= "9")) {
+    if (char === "," || ("0" <= char && char <= "9")) {
       // i is the last waypoint char, i.e., the end of the prefix.
       return position.slice(0, i + 1);
     }

@@ -110,11 +110,10 @@ export class IDs {
    * - All characters are lexicographically greater than `','` (code point 44).
    * - The first character is lexicographically less than `'~'` (code point 126). (TODO)
    *
-   * TODO: no comma or .
+   * TODO: see PositionSource constructor
    */
   static validate(id: string): void {
     precond(id < LastInternal, "ID must be less than", LastInternal, ":", id);
     precond(id.indexOf(",") === -1, "ID must not contain ',':", id);
-    precond(id.indexOf(".") === -1, "ID must not contain '.':", id);
   }
 }
