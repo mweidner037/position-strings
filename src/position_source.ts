@@ -118,9 +118,13 @@ export class PositionSource {
    * The unique ID for this PositionSource.
    */
   readonly ID: string;
+  /**
+   * The waypoint name corresonding to our ID (long form).
+   */
+  private readonly idName: string;
 
   /**
-   * For each waypoint that we created, maps a "generic" position for that
+   * For each waypoint that we created, maps a prefix for that
    * waypoint (omitting valueIndex and 'r') to the last (most recent)
    * valueIndex.
    *
@@ -164,6 +168,7 @@ export class PositionSource {
     this.ID = options?.ID ?? IDs.random();
     // OPT: flag where you promise to use fixed ID lengths, then we get
     // rid of the comma after ID? Though makes createBetween trickier.
+    this.idName = `,${this.ID}.`;
   }
 
   /**
@@ -193,99 +198,131 @@ export class PositionSource {
     const rightFixed = right === PositionSource.LAST ? null : right;
 
     let ans: string;
-    let isNewWaypoint = true;
 
     if (
       rightFixed !== null &&
       (leftFixed === null || rightFixed.startsWith(leftFixed))
     ) {
-      // Left child of right.
-      ans = rightFixed.slice(0, -1) + "l" + this.newWaypoint();
+      // Left child of right. This always uses a new waypoint.
+      const ancestor = leftVersion(rightFixed);
+      ans = this.withNewWaypoint(ancestor);
     } else {
       // Right child of left.
       if (leftFixed === null) {
-        ans = this.newWaypoint();
+        // ancestor is FIRST.
+        ans = this.withNewWaypoint(PositionSource.FIRST);
       } else {
-        // TODO: on master: below comment said right instead of left (2x).
-        // Check if we can reuse left's leaf waypoint.
-        const lastCounterChar = getLastCounterChar(leftFixed);
-        const waypointPrefix = leftFixed.slice(0, lastCounterChar + 1);
-        const lastValueIndex = this.lastValueIndices.get(waypointPrefix);
-        if (lastValueIndex !== undefined) {
-          if (
-            leftFixed.slice(lastCounterChar + 1, -1) ===
-            stringifyValueIndex(lastValueIndex)
-          ) {
-            // left is the last (most recent) position for one of our waypoints;
-            // reuse the waypoint, just increasing valueIndex.
-            const valueIndex = lexSucc(lastValueIndex);
-            ans = waypointPrefix + stringifyValueIndex(valueIndex) + "r";
-
-            isNewWaypoint = false;
-            this.lastValueIndices.set(waypointPrefix, valueIndex);
-          } else {
-            // Make a "lazy" waypoint with ID ','.
-            // TODO: doc ID can't start with ','.
-            ans = leftFixed + this.newWaypoint(true);
-          }
+        // Check if we can reuse left's prefix.
+        // It needs to be one of ours, and right can't use the same
+        // prefix (necessarily with a greater valueIndex).
+        const prefix = getPrefix(leftFixed);
+        const lastValueIndex = this.lastValueIndices.get(prefix);
+        if (
+          lastValueIndex !== undefined &&
+          !(rightFixed !== null && rightFixed.startsWith(prefix))
+        ) {
+          // Reuse.
+          const valueIndex = lexSucc(lastValueIndex);
+          ans = prefix + stringifyValueIndex(valueIndex);
+          this.lastValueIndices.set(prefix, valueIndex);
         } else {
-          // Create a new leaf.
-          ans = leftFixed + this.newWaypoint();
+          // New waypoint.
+          ans = this.withNewWaypoint(leftFixed);
         }
       }
     }
 
-    if (isNewWaypoint) {
-      this.lastValueIndices.set(ans.slice(0, -2), 0);
-    }
-
-    assert(left < ans! && ans! < right, "Bad position:", left, ans!, right);
-    return ans!;
+    assert(left < ans && ans < right, "Bad position:", left, ans, right);
+    return ans;
   }
 
   /**
-   * Returns a node corresponding to a new waypoint, also
-   * updating this.lastValueIndices accordingly.
+   * Creates (& stores) a new waypoint with the given ancestor (= prefix
+   * adjusted for side), returning the position.
    */
-  private newWaypoint(lazy = false): string {
-    const counter = this.lastValueIndices.size;
-    const id = lazy ? "," : this.ID;
-    return `${id}${stringifyCounter(counter)}0r`;
+  private withNewWaypoint(ancestor: string): string {
+    const waypoint = this.newWaypointName(ancestor);
+    this.lastValueIndices.set(ancestor + waypoint, 1);
+    return ancestor + waypoint + stringifyValueIndex(1);
   }
-}
 
-function getLastCounterChar(s: string): number {
-  // Skips last char b/c we know that's r or l.
-  for (let i = s.length - 2; i >= 0; i--) {
-    if (s.charCodeAt(i) >= 97) return i;
+  /**
+   * Returns the name to use for a new waypoint following ancestor.
+   */
+  private newWaypointName(ancestor: string): string {
+    // See if our ID appears already in ancestor.
+    const existing = ancestor.lastIndexOf(this.idName);
+    if (existing === -1) {
+      // No existing occurrence; use idName.
+      // OPT: skip ',' at very beginning (ancestor is "").
+      return this.idName;
+    } else {
+      // Find the index of existing among the long-form (idName)
+      // waypoints, counting backwards. Here we use the fact
+      // that each idName starts with ',', and ',' does not appear otherwise (TODO).
+      let index = 0;
+      for (let i = existing + 1; i < ancestor.length; i++) {
+        if (ancestor.charAt(i) === ",") index++;
+      }
+      // Waypoint name is index interpreted as a "counter".
+      return stringifyCounter(index);
+    }
   }
-  assert(false, "lastCounterChar not found", s);
-  return -1;
 }
 
 /**
- * Base 36 encoding, using capital letters to avoid confusion
- * with 'l' and 'r'. This works with lexSucc since the base36
+ * Base 36 encoding. This works with lexSucc since the base36
  * chars are lexicographically ordered by value.
  */
 function stringifyValueIndex(n: number): string {
-  return n.toString(36).toUpperCase();
+  return n.toString(36);
+}
+
+function parseValueIndex(s: string): number {
+  return Number.parseInt(s, 36);
 }
 
 /**
- * Use Base 26 with all lowercase letters, so it's greater than all
- * valueIndex chars. This gives us the usual guarantee:
- * if counter1 < counter2, then counter1valueIndex1 < counter2valueIndex2,
- * even if counter1 is a prefix of counter2.
+ * Base 36, except for last digit, which is base 26 using
+ * capital letters. This makes it easy to find the end when it
+ * is followed by a base36 (= digits & lowercase letters) valueIndex.
  */
 function stringifyCounter(n: number): string {
-  if (n === 0) return "a";
-  const ans: number[] = [];
-  while (n > 0) {
-    ans.unshift((n % 26) + 97);
-    n = Math.floor(n / 26);
+  if (n < 26) return String.fromCharCode(65 + n);
+  else {
+    return Math.floor(n / 26).toString(36) + String.fromCharCode(65 + (n % 26));
   }
-  return String.fromCharCode(...ans);
+}
+
+/**
+ * Returns position's prefix (TODO: define: part through last waypoint name).
+ */
+function getPrefix(position: string): string {
+  // Last waypoint char is the last '.' or capital letter.
+  // We know it's not the very last char (always a valueIndex).
+  for (let i = position.length - 2; i >= 0; i--) {
+    const char = position.charAt(i);
+    if (char === "." || (char >= "A" && char <= "Z")) {
+      // i is the last waypoint char, i.e., the end of the prefix.
+      return position.slice(0, i + 1);
+    }
+  }
+  assert(false, "No last waypoint char found (not a position?)", position);
+  return "";
+}
+
+/**
+ * Returns the variant of position ending with a "left" marker
+ * instead of the default "right" marker.
+ *
+ * The return value is not a position, but may be used as an ancestor
+ * of a position.
+ */
+function leftVersion(position: string) {
+  const last = parseValueIndex(position.charAt(position.length - 1));
+  // last should be an odd base36 number. Subtract 1, making it even.
+  assert(last % 2 === 1, "Bad side marker (not a position?)", last, position);
+  return position.slice(0, -1) + stringifyValueIndex(last - 1);
 }
 
 const log36 = Math.log(36);
@@ -321,14 +358,17 @@ const log36 = Math.log(36);
  * in front of each number, each d consumes 2^(-d) of the remaining
  * values, so we never "reach 1" (overflow to d+1 digits when
  * we meant to use d digits).
+ *
+ * TODO: odds only now
  */
 function lexSucc(n: number): number {
+  // OPT: learn d from the stringified number.
   const d = n === 0 ? 1 : Math.floor(Math.log(n) / log36) + 1;
   if (n === Math.pow(36, d) - Math.pow(18, d) - 1) {
-    // n -> (n + 1) * 36
-    return (n + 1) * 36;
+    // First step is a new length: n -> (n + 1) * 36 + 1
+    return (n + 1) * 36 + 1;
   } else {
-    // n -> n + 1
-    return n + 1;
+    // n -> n + 2
+    return n + 2;
   }
 }

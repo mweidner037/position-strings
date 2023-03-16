@@ -3,6 +3,11 @@ import seedrandom from "seedrandom";
 import { IDs, PositionSource } from "../src";
 import { assertIsOrdered } from "./util";
 
+// TODO: tests involving deletion (create position several times in same
+// place, later resurrect & make sure not equal).
+// TODO: test that tries to create a left child of every node (at least 36),
+// to test new parity strategy.
+
 describe("manual", () => {
   const rng = seedrandom("42");
   const randomName = IDs.pseudoRandom(rng);

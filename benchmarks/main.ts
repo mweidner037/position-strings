@@ -1,7 +1,6 @@
 import { assert } from "chai";
 import fs from "fs";
 import createRBTree from "functional-red-black-tree";
-import pako from "pako";
 import seedrandom from "seedrandom";
 import { IDs, PositionSource } from "../src";
 import realTextTraceEdits from "./real_text_trace_edits.json";
@@ -23,13 +22,8 @@ function run(ops?: number, rotateFreq?: number) {
   console.log();
 
   const rng = seedrandom("42");
-  function newID() {
-    // Replace the last char with ',' so that getMetric() can count
-    // the number of nodes in a position.
-    return IDs.pseudoRandom(rng, { length: IDs.DEFAULT_LENGTH - 1 }) + ",";
-  }
   let source = new PositionSource({
-    ID: newID(),
+    ID: IDs.pseudoRandom(rng),
   });
   let list = createRBTree<string, string>();
   // In order of creation, so we can watch time trends.
@@ -37,7 +31,7 @@ function run(ops?: number, rotateFreq?: number) {
 
   for (let i = 0; i < (ops ?? edits.length); i++) {
     if (rotateFreq && i > 0 && i % rotateFreq === 0) {
-      source = new PositionSource({ ID: newID() });
+      source = new PositionSource({ ID: IDs.pseudoRandom(rng) });
     }
     const edit = edits[i];
     if (edit[2] !== undefined) {
@@ -67,8 +61,8 @@ function run(ops?: number, rotateFreq?: number) {
     metrics.map((metric) => metric.length)
   );
   printStats(
-    "compressedLength",
-    metrics.map((metric) => metric.compressedLength)
+    "longNodes",
+    metrics.map((metric) => metric.longNodes)
   );
   printStats(
     "nodes",
@@ -83,11 +77,11 @@ function run(ops?: number, rotateFreq?: number) {
   if (!fs.existsSync(resultsDir)) fs.mkdirSync(resultsDir);
   const fileName = `results_${ops ?? "all"}_${rotateFreq ?? "never"}.csv`;
   const csv =
-    "Length,CompressedLength,Nodes,ValueIndexCount\n" +
+    "Length,LongNodes,Nodes,ValueIndexCount\n" +
     metrics
       .map(
         (metric) =>
-          `${metric.length},${metric.compressedLength},${metric.nodes},${metric.valueIndexCount}`
+          `${metric.length},${metric.longNodes},${metric.nodes},${metric.valueIndexCount}`
       )
       .join("\n");
   fs.writeFileSync(resultsDir + fileName, csv);
@@ -95,42 +89,66 @@ function run(ops?: number, rotateFreq?: number) {
 
 interface PositionMetric {
   length: number;
-  compressedLength: number;
+  /** Nodes with long names. */
+  longNodes: number;
   nodes: number;
   valueIndexCount: number;
 }
 
-function getLastCounterChar(s: string): number {
-  // Skips last char b/c we know that's r or l.
-  for (let i = s.length - 2; i >= 0; i--) {
-    if (s.charCodeAt(i) >= 97) return i;
+function getLastWaypointChar(position: string): number {
+  // Last waypoint char is the last '.' or capital letter.
+  // We know it's not the very last char (always a valueIndex).
+  for (let i = position.length - 2; i >= 0; i--) {
+    const char = position.charAt(i);
+    if (char === "." || (char >= "A" && char <= "Z")) {
+      // i is the last waypoint char, i.e., the end of the prefix.
+      return i;
+    }
   }
-  throw new Error("lastLowerAlpha not found " + s);
+  throw new Error("lastWaypointChar not found: " + position);
 }
 
 function parseValueIndex(s: string): number {
-  return Number.parseInt(s.toLowerCase(), 36);
+  return Number.parseInt(s, 36);
 }
 
 function getMetric(position: string): PositionMetric {
-  // Nodes = # commas, since we end each ID with one.
-  let commas = 0;
+  // Nodes = # periods, since we end each ID with one.
+  let periods = 0;
   for (const char of position) {
-    if (char === ",") commas++;
+    if (char === ".") periods++;
   }
-  const nodes = commas;
-  // Get valueIndex: after last counter char, before last r.
-  const lastCounterChar = getLastCounterChar(position);
-  const valueIndex = parseValueIndex(position.slice(lastCounterChar + 1, -1));
+  const longNodes = periods;
+
+  // Get valueIndex: after last waypoint char.
+  const lastWaypointChar = getLastWaypointChar(position);
+  const valueIndex = parseValueIndex(position.slice(lastWaypointChar + 1));
 
   return {
     length: position.length,
-    // Note: this deflate contributes > 75% of the runtime.
-    // OPT: Write a faster compression algorithm that just dedupes IDs.
-    compressedLength: pako.deflate(position).byteLength,
-    nodes,
+    longNodes,
+    nodes: nodeCount(position),
     valueIndexCount: lexSuccCount(valueIndex),
   };
+}
+
+function nodeCount(position: string): number {
+  // One node per:
+  // - '.' (end of a long name)
+  // - Capital letter outside of a long name
+  // (end of a short name).
+  let count = 0;
+  let inLongName = true;
+  for (const char of position) {
+    if (char === ",") inLongName = true;
+    else if (char === ".") {
+      count++;
+      inLongName = false;
+    } else if (!inLongName && "A" <= char && char <= "Z") {
+      count++;
+    }
+  }
+  return count;
 }
 
 /**
@@ -145,7 +163,8 @@ function lexSuccCount(n: number): number {
   for (let d2 = 1; d2 < d; d2++) {
     ans += Math.pow(18, d2);
   }
-  return ans;
+  // Sequence uses odds only, so discount that.
+  return (ans - 1) / 2;
 }
 
 function printStats(name: string, data: number[]) {
