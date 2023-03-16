@@ -120,8 +120,9 @@ export class PositionSource {
   readonly ID: string;
 
   /**
-   * For each position that uses the greatest valueIndex for one of
-   * our waypoints, maps that position to its valueIndex (as a number).
+   * For each waypoint that we created, maps a "generic" position for that
+   * waypoint (omitting valueIndex and 'r') to the last (most recent)
+   * valueIndex.
    *
    * This map has size equal to our number of waypoints.
    */
@@ -207,21 +208,21 @@ export class PositionSource {
       } else {
         // TODO: on master: below comment said right instead of left (2x).
         // Check if we can reuse left's leaf waypoint.
-        const lastValueIndex = this.lastValueIndices.get(leftFixed);
-        if (lastValueIndex !== undefined) {
+        const lastCounterChar = getLastCounterChar(leftFixed);
+        const waypointPrefix = leftFixed.slice(0, lastCounterChar + 1);
+        const lastValueIndex = this.lastValueIndices.get(waypointPrefix);
+        if (
+          lastValueIndex !== undefined &&
+          leftFixed.slice(lastCounterChar + 1, -1) ===
+            stringifyValueIndex(lastValueIndex)
+        ) {
           // left is the last (most recent) position for one of our waypoints;
           // reuse the waypoint, just increasing valueIndex.
-          const [valueIndex, lastLength] = lexSucc(lastValueIndex);
-          const beforeValueIndex = leftFixed.slice(
-            0,
-            // Trim last 'r' and lastValueIndex.
-            -(1 + lastLength)
-          );
-          ans = beforeValueIndex + stringifyValueIndex(valueIndex) + "r";
+          const valueIndex = lexSucc(lastValueIndex);
+          ans = waypointPrefix + stringifyValueIndex(valueIndex) + "r";
 
           isNewWaypoint = false;
-          this.lastValueIndices.delete(leftFixed);
-          this.lastValueIndices.set(ans, valueIndex);
+          this.lastValueIndices.set(waypointPrefix, valueIndex);
         } else {
           // Create a new leaf.
           ans = leftFixed + this.newWaypoint();
@@ -230,7 +231,7 @@ export class PositionSource {
     }
 
     if (isNewWaypoint) {
-      this.lastValueIndices.set(ans, 0);
+      this.lastValueIndices.set(ans.slice(0, -2), 0);
     }
 
     assert(left < ans! && ans! < right, "Bad position:", left, ans!, right);
@@ -245,6 +246,15 @@ export class PositionSource {
     const counter = this.lastValueIndices.size;
     return `${this.ID}${stringifyCounter(counter)}0r`;
   }
+}
+
+function getLastCounterChar(s: string): number {
+  // Skips last char b/c we know that's r or l.
+  for (let i = s.length - 2; i >= 0; i--) {
+    if (s.charCodeAt(i) >= 97) return i;
+  }
+  assert(false, "lastCounterChar not found", s);
+  return -1;
 }
 
 /**
@@ -276,8 +286,7 @@ const log36 = Math.log(36);
 
 /**
  * Returns the successor of n in an enumeration of a special
- * set of numbers. Also returns the number of base36 digits
- * of n.
+ * set of numbers.
  *
  * That enumeration has the following properties:
  * 1. Each number is a nonnegative integer (however, not all
@@ -307,13 +316,13 @@ const log36 = Math.log(36);
  * values, so we never "reach 1" (overflow to d+1 digits when
  * we meant to use d digits).
  */
-function lexSucc(n: number): [succ: number, d: number] {
+function lexSucc(n: number): number {
   const d = n === 0 ? 1 : Math.floor(Math.log(n) / log36) + 1;
   if (n === Math.pow(36, d) - Math.pow(18, d) - 1) {
     // n -> (n + 1) * 36
-    return [(n + 1) * 36, d];
+    return (n + 1) * 36;
   } else {
     // n -> n + 1
-    return [n + 1, d];
+    return n + 1;
   }
 }
