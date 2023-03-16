@@ -211,18 +211,23 @@ export class PositionSource {
         const lastCounterChar = getLastCounterChar(leftFixed);
         const waypointPrefix = leftFixed.slice(0, lastCounterChar + 1);
         const lastValueIndex = this.lastValueIndices.get(waypointPrefix);
-        if (
-          lastValueIndex !== undefined &&
-          leftFixed.slice(lastCounterChar + 1, -1) ===
+        if (lastValueIndex !== undefined) {
+          if (
+            leftFixed.slice(lastCounterChar + 1, -1) ===
             stringifyValueIndex(lastValueIndex)
-        ) {
-          // left is the last (most recent) position for one of our waypoints;
-          // reuse the waypoint, just increasing valueIndex.
-          const valueIndex = lexSucc(lastValueIndex);
-          ans = waypointPrefix + stringifyValueIndex(valueIndex) + "r";
+          ) {
+            // left is the last (most recent) position for one of our waypoints;
+            // reuse the waypoint, just increasing valueIndex.
+            const valueIndex = lexSucc(lastValueIndex);
+            ans = waypointPrefix + stringifyValueIndex(valueIndex) + "r";
 
-          isNewWaypoint = false;
-          this.lastValueIndices.set(waypointPrefix, valueIndex);
+            isNewWaypoint = false;
+            this.lastValueIndices.set(waypointPrefix, valueIndex);
+          } else {
+            // Make a "lazy" waypoint with ID ','.
+            // TODO: doc ID can't start with ','.
+            ans = leftFixed + this.newWaypoint(true);
+          }
         } else {
           // Create a new leaf.
           ans = leftFixed + this.newWaypoint();
@@ -242,9 +247,10 @@ export class PositionSource {
    * Returns a node corresponding to a new waypoint, also
    * updating this.lastValueIndices accordingly.
    */
-  private newWaypoint(): string {
+  private newWaypoint(lazy = false): string {
     const counter = this.lastValueIndices.size;
-    return `${this.ID}${stringifyCounter(counter)}0r`;
+    const id = lazy ? "," : this.ID;
+    return `${id}${stringifyCounter(counter)}0r`;
   }
 }
 
