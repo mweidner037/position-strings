@@ -25,7 +25,6 @@ export class IDs {
   // consider the total probability across 100,000,000
   // documents with 1,000 IDs each
   // (= 10 users x 100 days x 1 ID/user/day).
-
   /**
    * The default length of an ID, in characters.
    */
@@ -105,12 +104,10 @@ export class IDs {
   }
 
   /**
-   * Throws an error if `ID` does not satisfy the requirements from
-   * `PositionSource`'s constructor:
-   * - All characters are lexicographically greater than `','` (code point 44).
-   * - The first character is lexicographically less than `'~'` (code point 126). (TODO)
-   *
-   * TODO: see PositionSource constructor
+   * Throws an error if `ID` does not satisfy the
+   * following requirements from `PositionSource`'s constructor:
+   * - It does not contain `','`.
+   * - The first character is lexicographically less than `'~'` (code point 126).
    */
   static validate(id: string): void {
     precond(id < LastInternal, "ID must be less than", LastInternal, ":", id);

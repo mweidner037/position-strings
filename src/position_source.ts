@@ -2,61 +2,6 @@ import { IDs } from "./ids";
 import { assert, LastInternal, precond } from "./util";
 
 /**
- * ALGORITHM
- *
- * The underlying total order is similar to the string implementation
- * of Plain Tree described
- * [here](https://mattweidner.com/2022/10/21/basic-list-crdt.html#intro-string-implementation).
- * The difference is a common-case optimization: left-to-right insertions
- * by the same PositionSource reuse the same (ID, counter)
- * pair (we call this a _waypoint_), just using
- * an extra _valueIndex_ to distinguish positions
- * within the sequence, instead of creating a long
- * rightward path in the tree. In this way,
- * a sequence of m left-to-right insertions see their
- * positions grow by O(log(m)) length (the size of
- * valueIndex) instead of O(m) length (the size of
- * a path containing one node per insertion).
- *
- * In more detail, the underlying tree consists of alternating
- * layers:
- * - Nodes in even layers (starting with the root's children)
- * are __waypoints__, each labeled by a pair (ID, counter). A waypoint can be either a left or right
- * child of its parent, except that the root only has right
- * children. Waypoint same-siblings siblings are sorted arbitrarily,
- * as in Plain Tree.
- * - Nodes in odd layers are __value indices__, each labelled
- * by a nonnegative integer. A value index is always a right
- * child of its parent. Value indices are sorted
- * *lexicographically*; we use a subset of numbers for which
- * this coincides with the usual order by magnitude.
- *
- * Each position corresponds to a value index node in the tree
- * whose parent waypoint's ID equals the position's
- * creator. A position is a string description of the path
- * from the root to its node (excluding the root).
- * Each pair of nodes (waypoint = (ID, counter), valueIndex)
- * is represented by the substring (here written like a template literal):
- * ```
- * ${ID},${counter},${valueIndex}${l or r}
- * ```
- * where the final value is 'l' if the next node is a left
- * child, else 'r' (including if this pair is the final node pair,
- * to ensure that a terminal node is sorted in between its
- * left and right children). For efficiency, counter and valueIndex
- * are base36-encoded.
- *
- * For the above representation to sort correctly even if fields have
- * different lengths, we use the relations:
- * - ',' < all ID characters: Thus if ID1 < ID2, also `${ID1},${etc}` < ID2,
- * including in the case when ID1 is a prefix of ID2.
- * - ',' < all base-36 numeric characters: Likewise for counters.
- * - No valueIndex is a prefix of another (lexSucc property):
- * Thus if valueIndex1 < valueIndex2, also `${valueIndex1}r` < valueIndex2
- * and `${valueIndex1}l` < valueIndex2.
- */
-
-/**
  * A source of lexicographically-ordered "position strings" for
  * collaborative lists and text.
  *
@@ -88,7 +33,7 @@ import { assert, LastInternal, precond } from "./util";
  * not linearly.
  *
  * Position strings are printable ASCII. Specifically, they
- * contain alphanumeric characters, `','`, and `'.'`.
+ * contain alphanumeric characters and `','`.
  * Also, the special string `PositionSource.LAST` is `'~'`.
  *
  * Further reading:
@@ -119,16 +64,13 @@ export class PositionSource {
    */
   readonly ID: string;
   /**
-   * Our waypoint's long name: `${ID},`.
+   * Our waypoints' long name: `${ID},`.
    */
   private readonly idName: string;
 
   /**
-   * For each waypoint that we created, maps a prefix for that
-   * waypoint (omitting valueIndex and 'r') to the last (most recent)
-   * valueIndex.
-   *
-   * This map has size equal to our number of waypoints.
+   * For each waypoint that we created, maps a prefix (see getPrefix)
+   * for that waypoint to its last (most recent) valueIndex.
    */
   private lastValueIndices = new Map<string, number>();
 
@@ -151,14 +93,15 @@ export class PositionSource {
    * all PositionSources whose positions may be compared to ours. This
    * includes past PositionSources, even if they correspond to the same
    * user/device.
-   * - TODO: suffix uniqueness, e.g. same-length or put '.' at beginning
-   * (or multiple lengths of randomness if you're okay with the lower-length's
-   * odds). Needed for newWaypointName to avoid possible duplicates.
+   * - It is also not a suffix of any other ID. It is easy to
+   * ensure this by making all IDs be the same length, or by beginning
+   * all IDs with a reserved character.
    * - It does not contain `','`.
    * - The first character is lexicographically less than `'~'` (code point 126).
    *
-   * If `options.ID` contains non-alphanumeric characters, created positions
-   * will contain those characters in addition to the usual.
+   * If `options.ID` contains non-alphanumeric characters, then created
+   * positions will contain those characters in addition to
+   * alphanumeric characters and `','`.
    */
   constructor(options?: { ID?: string }) {
     if (options?.ID !== undefined) {
@@ -177,6 +120,7 @@ export class PositionSource {
    * PositionSources.
    *
    * @param left Defaults to `PositionSource.FIRST` (insert at the beginning).
+   *
    * @param right Defaults to `PositionSource.LAST` (insert at the end).
    */
   createBetween(
@@ -211,7 +155,8 @@ export class PositionSource {
       } else {
         // Check if we can reuse left's prefix.
         // It needs to be one of ours, and right can't use the same
-        // prefix (necessarily with a greater valueIndex).
+        // prefix (otherwise we would get ans > right by comparing right's
+        // older valueIndex to our new valueIndex).
         const prefix = getPrefix(leftFixed);
         const lastValueIndex = this.lastValueIndices.get(prefix);
         if (
@@ -219,7 +164,7 @@ export class PositionSource {
           !(rightFixed !== null && rightFixed.startsWith(prefix))
         ) {
           // Reuse.
-          const valueIndex = lexSucc(lastValueIndex);
+          const valueIndex = nextValueIndex(lastValueIndex);
           ans = prefix + stringifyBase52(valueIndex);
           this.lastValueIndices.set(prefix, valueIndex);
         } else {
@@ -238,34 +183,78 @@ export class PositionSource {
    * adjusted for side), returning the position.
    */
   private withNewWaypoint(ancestor: string): string {
-    const waypoint = this.newWaypointName(ancestor);
-    this.lastValueIndices.set(ancestor + waypoint, 1);
-    return ancestor + waypoint + stringifyBase52(1);
-  }
-
-  /**
-   * Returns the name to use for a new waypoint following ancestor.
-   */
-  private newWaypointName(ancestor: string): string {
-    // See if our ID appears already in ancestor.
+    let waypointName = this.idName;
+    // If our ID already appears in ancestor, instead use a short
+    // name for the waypoint.
+    // Here we use the no-suffix rule for IDs plus the uniqueness of ',' to
+    // claim that if this.idName (= `${ID},`) appears in ancestor, then it
+    // must actually be from a waypoint that we created.
     const existing = ancestor.lastIndexOf(this.idName);
     if (existing !== -1) {
-      // Find the index of existing among the long-form (idName)
-      // waypoints, counting backwards. Here we use the fact
-      // that each idName ends with ',', and ',' does not appear otherwise.
+      // Find the index of existing among the long-name
+      // waypoints, in backwards order. Here we use the fact that
+      // each idName ends with ',' and that ',' does not appear otherwise.
       let index = -1;
       for (let i = existing; i < ancestor.length; i++) {
         if (ancestor.charAt(i) === ",") index++;
       }
-      // Waypoint name is index interpreted as a "counter".
-      return stringifyCounter(index);
-    } else return this.idName;
+      waypointName = stringifyShortName(index);
+    }
+
+    // valueIndex starts at 1, since it's always odd.
+    this.lastValueIndices.set(ancestor + waypointName, 1);
+    return ancestor + waypointName + stringifyBase52(1);
   }
 }
 
 /**
- * Base 52 encoding (letters). This works with lexSucc since the base52
- * chars are lexicographically ordered by value.
+ * Returns position's *prefix*: the string through the last waypoint
+ * name, or equivalently, without the final valueIndex.
+ */
+function getPrefix(position: string): string {
+  // Last waypoint char is the last ',' (for long names) or
+  // digit (for short names). Note that neither appear in valueIndex,
+  // which is all letters.
+  for (let i = position.length - 2; i >= 0; i--) {
+    const char = position.charAt(i);
+    if (char === "," || ("0" <= char && char <= "9")) {
+      // i is the last waypoint char, i.e., the end of the prefix.
+      return position.slice(0, i + 1);
+    }
+  }
+  assert(false, "No last waypoint char found (not a position?)", position);
+  return "";
+}
+
+/**
+ * Returns the variant of position ending with a "left" marker
+ * instead of the default "right" marker.
+ *
+ * I.e., the ancestor for position's left descendants.
+ */
+function leftVersion(position: string) {
+  const last = parseBase52(position.charAt(position.length - 1));
+  // last should be an odd base52 number. Subtract 1, making it even.
+  assert(last % 2 === 1, "Bad valueIndex (not a position?)", last, position);
+  return position.slice(0, -1) + stringifyBase52(last - 1);
+}
+
+/**
+ * Base 52, except for last digit, which is base 10 using
+ * digits. That makes it easy to find the end of a short name
+ * in getPrefix: it ends at the last digit.
+ */
+function stringifyShortName(n: number): string {
+  if (n < 10) return String.fromCharCode(48 + n);
+  else {
+    return (
+      stringifyBase52(Math.floor(n / 10)) + String.fromCharCode(48 + (n % 10))
+    );
+  }
+}
+
+/**
+ * Base 52 encoding using letters (where value order = string order).
  */
 function stringifyBase52(n: number): string {
   if (n === 0) return "A";
@@ -288,95 +277,48 @@ function parseBase52(s: string): number {
   return n;
 }
 
-/**
- * Base 52, except for last digit, which is base 10 using
- * digits. This makes it easy to find the end when it
- * is followed by a base52 (letters) valueIndex.
- */
-function stringifyCounter(n: number): string {
-  if (n < 10) return String.fromCharCode(48 + n);
-  else {
-    return (
-      stringifyBase52(Math.floor(n / 10)) + String.fromCharCode(48 + (n % 10))
-    );
-  }
-}
-
-/**
- * Returns position's prefix (TODO: define: part through last waypoint name).
- */
-function getPrefix(position: string): string {
-  // Last waypoint char is the last '.' or digit.
-  // We know it's not the very last char (always a valueIndex).
-  for (let i = position.length - 2; i >= 0; i--) {
-    const char = position.charAt(i);
-    if (char === "," || ("0" <= char && char <= "9")) {
-      // i is the last waypoint char, i.e., the end of the prefix.
-      return position.slice(0, i + 1);
-    }
-  }
-  assert(false, "No last waypoint char found (not a position?)", position);
-  return "";
-}
-
-/**
- * Returns the variant of position ending with a "left" marker
- * instead of the default "right" marker.
- *
- * The return value is not a position, but may be used as an ancestor
- * of a position.
- */
-function leftVersion(position: string) {
-  const last = parseBase52(position.charAt(position.length - 1));
-  // last should be an odd base52 number. Subtract 1, making it even.
-  assert(last % 2 === 1, "Bad side marker (not a position?)", last, position);
-  return position.slice(0, -1) + stringifyBase52(last - 1);
-}
-
 const log52 = Math.log(52);
 
 /**
- * Returns the successor of n in an enumeration of a special
- * set of numbers.
+ * Returns the next valueIndex in their special enumeration.
  *
- * That enumeration has the following properties:
- * 1. Each number is a nonnegative integer (however, not all
- * nonnegative integers are enumerated).
- * 2. The number's base-36 representations are enumerated in
+ * The enumeration has the following properties:
+ * 1. Each number is an odd, nonnegative integer (however, not all
+ * such integers are enumerated).
+ * 2. The number's base-52 representations are enumerated in
  * lexicographic order, with no prefixes (i.e., no string
  * representation is a prefix of another).
- * 3. The n-th enumerated number has O(log(n)) base-36 digits.
+ * 3. The n-th enumerated number has O(log(n)) base-52 digits.
  *
- * Properties (2) and (3) are analogous to normal counting,
- * with the usual order by magnitude; the novelty here is that
- * we instead use the lexicographic order on base-36 representations.
- * It is also the case that
+ * Properties (2) and (3) are analogous to normal counting, except
+ * that we order by the (base-52) lexicographic order instead of the
+ * usual order by magnitude. It is also the case that
  * the numbers are in order by magnitude, although we do not
  * use this property.
  *
- * The specific enumeration is:
+ * The specific enumeration is the following one restricted to odd numbers:
  * - Start with 0.
- * - Enumerate 18^1 numbers (0, 1, ..., h = 17).
- * - Add 1, multiply by 36, then enumerate 18^2 numbers
- * (i0, i1, ..., qz).
- * - Add 1, multiply by 36, then enumerate 18^3 numbers
- * (r0, r1, ..., vhz).
+ * - Enumerate 26^1 numbers (A, B, ..., Z).
+ * - Add 1, multiply by 52, then enumerate 26^2 numbers
+ * (aA, aB, ..., mz).
+ * - Add 1, multiply by 52, then enumerate 26^3 numbers
+ * (nAA, nAB, ..., tZz).
  * - Repeat this pattern indefinitely, enumerating
- * 18^d d-digit numbers for each d >= 1. Putting a decimal place
- * in front of each number, each d consumes 2^(-d) of the remaining
- * values, so we never "reach 1" (overflow to d+1 digits when
+ * 26^d d-digit numbers for each d >= 1. Imagining a decimal place
+ * in front of each number, each d consumes 2^(-d) of the unit interval,
+ * so we never "reach 1" (overflow to d+1 digits when
  * we meant to use d digits).
- *
- * TODO: odds only now; 36 -> 52
  */
-function lexSucc(n: number): number {
+function nextValueIndex(n: number): number {
   // OPT: learn d from the stringified number.
   const d = n === 0 ? 1 : Math.floor(Math.log(n) / log52) + 1;
+  // You can calculate that the last d-digit number is 52^d - 26^d - 1.
   if (n === Math.pow(52, d) - Math.pow(26, d) - 1) {
-    // First step is a new length: n -> (n + 1) * 52 + 1
+    // First step is a new length: n -> (n + 1) * 52.
+    // Second step is n -> n + 1.
     return (n + 1) * 52 + 1;
   } else {
-    // n -> n + 2
+    // n -> n + 1 twice.
     return n + 2;
   }
 }

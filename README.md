@@ -7,7 +7,8 @@ collaborative lists and text.
 - [Usage](#usage)
 - [API](#api)
 - [Example App](#example-app)
-- [Developing](#developing)
+- [Performance](#performance)
+- [Algorithm](#algorithm)
 
 ## About
 
@@ -133,7 +134,8 @@ more than one PositionSource for the same document (list/text string).
 An exception is if multiple logical users share the same runtime;
 we then recommend one PositionSource per user.
 
-_@param_ `options.ID` A unique ID for this PositionSource. Defaults to `IDs.random()`.
+_@param_ `options.ID` A unique ID for this PositionSource. Defaults to
+`IDs.random()`.
 
 If provided, `options.ID` must satisfy:
 
@@ -141,11 +143,15 @@ If provided, `options.ID` must satisfy:
   all PositionSources whose positions may be compared to ours. This
   includes past PositionSources, even if they correspond to the same
   user/device.
-- All characters are lexicographically greater than `','` (code point 44).
+- It is also not a suffix of any other ID. It is easy to
+  ensure this by making all IDs be the same length, or by beginning
+  all IDs with a reserved character.
+- It does not contain `','`.
 - The first character is lexicographically less than `'~'` (code point 126).
 
-If `options.ID` contains non-alphanumeric characters, created positions
-will contain those characters and `','`.
+If `options.ID` contains non-alphanumeric characters, then created
+positions will contain those characters in addition to
+alphanumeric characters and `','`.
 
 #### createBetween
 
@@ -164,6 +170,7 @@ even in the face on concurrent calls to this method on other
 PositionSources.
 
 _@param_ `left` Defaults to `PositionSource.FIRST` (insert at the beginning).
+
 _@param_ `right` Defaults to `PositionSource.LAST` (insert at the end).
 
 #### Properties
@@ -331,9 +338,10 @@ about `floor(log_2(chars.length))` bits of entropy per `length`.
 static validate(ID: string): void
 ```
 
-Throws an error if `ID` does not satisfy the requirements from `PositionSource`'s constructor:
+Throws an error if `ID` does not satisfy the
+following requirements from `PositionSource`'s constructor:
 
-- All characters are lexicographically greater than `','` (code point 44).
+- It does not contain `','`.
 - The first character is lexicographically less than `'~'` (code point 126).
 
 #### Properties
@@ -359,15 +367,12 @@ The app also demonstrates using `Cursors` to track the local user's selection st
 
 [Source code](https://github.com/mweidner037/firebase-text-editor/blob/master/src/site/main.ts)
 
-## Developing
+## Performance
 
-### Files
+TODO
 
-- `src/`: Source folder. Entry point is `index.ts`. Built to `build/esm` and `build/commonjs`.
-- `test/`: Test folder. Runs using mocha.
+- Benchmark with `npm run benchmarks`. It simulates [Martin Kleppmann's text trace](https://github.com/automerge/automerge-perf) and measures properties of the created positions. Summary stats are printed to stdout (current outputs in [stats.md](https://github.com/mweidner037/position-strings/blob/master/stats.md)); full data is written to `benchmark_results/`.
 
-### Commands
+## Algorithm
 
-- Build with `npm run build`.
-- Test, lint, etc. with `npm run test`.
-- Benchmark with `npm run benchmarks`. It simulates [Martin Kleppmann's text trace](https://github.com/automerge/automerge-perf) and measures properties of the created positions. Summary stats are printed to stdout (current outputs in `stats.md`); full data is written to `benchmark_results/`.
+TODO: based on list crdts; see [algorithm.md](https://github.com/mweidner037/position-strings/blob/master/algorithm.md) for details.
