@@ -3,7 +3,7 @@
   "version": "1.0.3",
   "description": "Lexicographically-ordered position strings for collaborative lists and text",
   "author": "Matthew Weidner",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/mweidner037/position-strings/issues"
   },
