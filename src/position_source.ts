@@ -308,9 +308,11 @@ const log52 = Math.log(52);
  * in front of each number, each d consumes 2^(-d) of the unit interval,
  * so we never "reach 1" (overflow to d+1 digits when
  * we meant to use d digits).
+ *
+ * I believe this is related to
+ * [Elias gamma coding](https://en.wikipedia.org/wiki/Elias_gamma_coding).
  */
 function nextValueIndex(n: number): number {
-  // OPT: learn d from the stringified number.
   const d = n === 0 ? 1 : Math.floor(Math.log(n) / log52) + 1;
   // You can calculate that the last d-digit number is 52^d - 26^d - 1.
   if (n === Math.pow(52, d) - Math.pow(26, d) - 1) {

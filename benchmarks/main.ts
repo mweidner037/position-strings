@@ -73,6 +73,17 @@ function run(ops?: number, rotateFreq?: number) {
     metrics.map((metric) => metric.valueIndexCount)
   );
 
+  // Estimate PositionSource memory usage.
+  // @ts-expect-error Private access
+  const lastValueIndices = source.lastValueIndices;
+  const keyLengths = [...lastValueIndices.keys()]
+    .map((prefix) => prefix.length)
+    .reduce((a, b) => a + b, 0);
+  console.log("### PositionSource memory usage\n");
+  console.log("- Map size:", lastValueIndices.size);
+  console.log("- Sum of map key lengths:", keyLengths);
+  console.log();
+
   // Write data files.
   if (!fs.existsSync(resultsDir)) fs.mkdirSync(resultsDir);
   const fileName = `results_${ops ?? "all"}_${rotateFreq ?? "never"}.csv`;
@@ -87,11 +98,23 @@ function run(ops?: number, rotateFreq?: number) {
   fs.writeFileSync(resultsDir + fileName, csv);
 }
 
+/**
+ * Data for a single position string.
+ */
 interface PositionMetric {
+  /** The position's length. */
   length: number;
-  /** Nodes with long names. */
+  /**
+   * The number of tree nodes using long waypoint names.
+   * Equivalently, the number of full IDs in the string.
+   */
   longNodes: number;
+  /** The total number of tree nodes. */
   nodes: number;
+  /**
+   * The "count" for the position's (final) valueIndex, i.e., its
+   * index in the enumeration of valueIndex's.
+   */
   valueIndexCount: number;
 }
 
@@ -191,8 +214,8 @@ function percentile(sortedData: number[], alpha: number) {
   return sortedData[index];
 }
 
-// In order of difficulty.
-run(1000);
-run(10000, 1000);
+// In the order described in README.md#performance.
 run();
 run(undefined, 1000);
+run(10000);
+run(10000, 1000);

@@ -8,7 +8,6 @@ collaborative lists and text.
 - [API](#api)
 - [Example App](#example-app)
 - [Performance](#performance)
-- [Algorithm](#algorithm)
 
 ## About
 
@@ -53,7 +52,8 @@ Also, the special string `PositionSource.LAST` is `'~'`.
   a related scheme that satisfies 1-3 but not 4-6.
 - [List CRDTs](https://mattweidner.com/2022/10/21/basic-list-crdt.html)
   and how they map to position strings. PositionSource uses an optimized
-  variant of that link's string implementation.
+  variant of that link's string implementation, described in
+  [algorithm.md](https://github.com/mweidner037/position-strings/blob/master/algorithm.md).
 - [Paper](https://www.repository.cam.ac.uk/handle/1810/290391) about
   interleaving in collaborative text editors.
 
@@ -69,13 +69,14 @@ const source = new PositionSource();
 
 // When the user types `char` at `index`:
 const position = source.createBetween(
-  myList[index - 1]?.position,
-  myList[index]?.position
-  // If the index is 0 or myList.length, the above behaves reasonably,
+  myListPositions[index - 1],
+  myListPositions[index]
+  // If index is 0 or myListPositions.length, the above behaves reasonably,
   // since undefined defaults to PositionSource.FIRST or LAST.
 );
-myList.splice(index, 0, { char, position });
-// Or insert it into a database table, ordered map, etc.
+myListPositions.splice(index, 0, position);
+myList.splice(index, 0, char);
+// Or insert { position, char } into a database table, ordered map, etc.
 ```
 
 If your list is collaborative:
@@ -85,18 +86,20 @@ import { findPosition } from "position-strings";
 
 // After creating { char, position }, also broadcast it to other users.
 // When you receive `remote = { char, position }` from another user:
-const index = findPosition(remote.position).index;
-myList.splice(index, remote);
+const index = findPosition(remote.position, myListPositions).index;
+myListPositions.splice(index, 0, remote.position);
+myList.splice(index, 0, remote.char);
 // Or insert `remote` into a database table and query
 // "SELECT char FROM table ORDER BY position".
+// Or insert `remote` into an ordered map, etc.
 ```
 
 To use cursors:
 
 ```ts
-import { Cursors } from "position-strings";
+import { Cursors, PositionSource } from "position-strings";
 
-let cursor: string = "";
+let cursor: string = PositionSource.FIRST;
 
 // When the user deliberately moves their cursor to `cursorIndex`:
 cursor = Cursors.fromIndex(cursorIndex, myListPositions);
@@ -106,8 +109,6 @@ cursor = Cursors.fromIndex(cursorIndex, myListPositions);
 cursorIndex = Cursors.toIndex(cursor, myListPositions);
 // Or run the query in the `Cursors.toIndex` docs.
 ```
-
-<!-- TODO: test usage snippets -->
 
 ## API
 
@@ -369,10 +370,21 @@ The app also demonstrates using `Cursors` to track the local user's selection st
 
 ## Performance
 
-TODO
+_Position string length_ is our main performance metric. This determines the memory, storage, and network overhead due to a collaborative list's positions.
 
-- Benchmark with `npm run benchmarks`. It simulates [Martin Kleppmann's text trace](https://github.com/automerge/automerge-perf) and measures properties of the created positions. Summary stats are printed to stdout (current outputs in [stats.md](https://github.com/mweidner037/position-strings/blob/master/stats.md)); full data is written to `benchmark_results/`.
+> PositionSource also uses some memory, and `PositionSource.createBetween` takes some time, but these are usually small enough to be ignored.
 
-## Algorithm
+To measure position string length in a realistic setting, we benchmark them against [Martin Kleppmann's text trace](https://github.com/automerge/automerge-perf). That is, we pretend a user is typing into a collaborative text editor that attaches a position string to each character, then output statistics for those positions.
 
-TODO: based on list crdts; see [algorithm.md](https://github.com/mweidner037/position-strings/blob/master/algorithm.md) for details.
+For the complete trace (182k positions, 160k total edits) typed by a single PositionSource, the average position length is **33 characters**, and the max length is 55.
+
+For a more realistic scenario with 260 PositionSources (a new one every 1,000 edits), the average position length is **104 characters**, and the max length is 220. "Rotating" PositionSources in this way simulates the effect of multiple users, or a single user who occasionally reloads the page. (The extra length comes from referencing multiple [IDs](#properties) per position: an average of 8 IDs/position x 8 chars/ID = 64 chars/position.)
+
+If we only consider the first 10,000 edits, the averages decrease to **23 characters** (single PositionSource) and **48 characters** (new PositionSource every 1,000 edits).
+
+More stats for these four scenarios are in [stats.md](https://github.com/mweidner037/position-strings/blob/master/stats.md). For full data, run `npm run benchmarks` (after `npm ci`) and look in `benchmark_results/`.
+
+### Optimizing
+
+- In realistic scenarios with multiple PositionSources, most of the positions' length comes from referencing [IDs](#properties). By default, IDs are 8 random alphanumeric characters to give a low probability of collisions, but you can pass your own shorter IDs to [PositionSource's constructor](#constructor). For example, you could assign IDs sequentially from a server.
+- A set of positions from the same list compress reasonably well together, since they represent different paths in the same tree. In particular, a list's worth of positions should compress well under prefix compression or gzip. However, compressing individual positions is not recommended.
