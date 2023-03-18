@@ -33,7 +33,7 @@ import { assert, LastInternal, precond } from "./util";
  * not linearly.
  *
  * Position strings are printable ASCII. Specifically, they
- * contain alphanumeric characters and `','`.
+ * contain alphanumeric characters, `','`, and `'.'`.
  * Also, the special string `PositionSource.LAST` is `'~'`.
  *
  * Further reading:
@@ -64,7 +64,7 @@ export class PositionSource {
    */
   readonly ID: string;
   /**
-   * Our waypoints' long name: `${ID},`.
+   * Our waypoints' long name: `,${ID}.`.
    */
   private readonly idName: string;
 
@@ -94,22 +94,19 @@ export class PositionSource {
    * all PositionSources whose positions may be compared to ours. This
    * includes past PositionSources, even if they correspond to the same
    * user/device.
-   * - It is also not a suffix of any other ID. It is easy to
-   * ensure this by making all IDs be the same length, or by beginning
-   * all IDs with a reserved character.
-   * - It does not contain `','`.
+   * - It does not contain `','` or `'.'`.
    * - The first character is lexicographically less than `'~'` (code point 126).
    *
    * If `options.ID` contains non-alphanumeric characters, then created
    * positions will contain those characters in addition to
-   * alphanumeric characters and `','`.
+   * alphanumeric characters, `','`, and `'.'`.
    */
   constructor(options?: { ID?: string }) {
     if (options?.ID !== undefined) {
       IDs.validate(options.ID);
     }
     this.ID = options?.ID ?? IDs.random();
-    this.idName = `${this.ID},`;
+    this.idName = `,${this.ID}.`;
   }
 
   /**
@@ -194,10 +191,10 @@ export class PositionSource {
     if (existing !== -1) {
       // Find the index of existing among the long-name
       // waypoints, in backwards order. Here we use the fact that
-      // each idName ends with ',' and that ',' does not appear otherwise.
+      // each idName ends with '.' and that '.' does not appear otherwise.
       let index = -1;
       for (let i = existing; i < ancestor.length; i++) {
-        if (ancestor.charAt(i) === ",") index++;
+        if (ancestor.charAt(i) === ".") index++;
       }
       waypointName = stringifyShortName(index);
     }
@@ -213,12 +210,12 @@ export class PositionSource {
  * name, or equivalently, without the final valueIndex.
  */
 function getPrefix(position: string): string {
-  // Last waypoint char is the last ',' (for long names) or
+  // Last waypoint char is the last '.' (for long names) or
   // digit (for short names). Note that neither appear in valueIndex,
   // which is all letters.
   for (let i = position.length - 2; i >= 0; i--) {
     const char = position.charAt(i);
-    if (char === "," || ("0" <= char && char <= "9")) {
+    if (char === "." || ("0" <= char && char <= "9")) {
       // i is the last waypoint char, i.e., the end of the prefix.
       return position.slice(0, i + 1);
     }

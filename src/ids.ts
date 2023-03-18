@@ -106,11 +106,12 @@ export class IDs {
   /**
    * Throws an error if `ID` does not satisfy the
    * following requirements from `PositionSource`'s constructor:
-   * - It does not contain `','`.
+   * - It does not contain `','` or `'.'`.
    * - The first character is lexicographically less than `'~'` (code point 126).
    */
   static validate(id: string): void {
     precond(id < LastInternal, "ID must be less than", LastInternal, ":", id);
     precond(id.indexOf(",") === -1, "ID must not contain ',':", id);
+    precond(id.indexOf(".") === -1, "ID must not contain '.':", id);
   }
 }

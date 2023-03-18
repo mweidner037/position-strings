@@ -43,7 +43,7 @@ These strings have the bonus properties:
    not linearly.
 
 Position strings are printable ASCII. Specifically, they
-contain alphanumeric characters and `','`.
+contain alphanumeric characters, `','`, and `'.'`.
 Also, the special string `PositionSource.LAST` is `'~'`.
 
 ### Further reading
@@ -145,15 +145,12 @@ If provided, `options.ID` must satisfy:
   all PositionSources whose positions may be compared to ours. This
   includes past PositionSources, even if they correspond to the same
   user/device.
-- It is also not a suffix of any other ID. It is easy to
-  ensure this by making all IDs be the same length, or by beginning
-  all IDs with a reserved character.
-- It does not contain `','`.
+- It does not contain `','` or `'.'`.
 - The first character is lexicographically less than `'~'` (code point 126).
 
 If `options.ID` contains non-alphanumeric characters, then created
 positions will contain those characters in addition to
-alphanumeric characters and `','`.
+alphanumeric characters, `','`, and `'.'`.
 
 #### createBetween
 
@@ -343,7 +340,7 @@ static validate(ID: string): void
 Throws an error if `ID` does not satisfy the
 following requirements from `PositionSource`'s constructor:
 
-- It does not contain `','`.
+- It does not contain `','` or `'.'`.
 - The first character is lexicographically less than `'~'` (code point 126).
 
 #### Properties
@@ -377,11 +374,11 @@ _Position string length_ is our main performance metric. This determines the mem
 
 To measure position string length in a realistic setting, we benchmark them against [Martin Kleppmann's text trace](https://github.com/automerge/automerge-perf). That is, we pretend a user is typing into a collaborative text editor that attaches a position string to each character, then output statistics for those positions.
 
-For the complete trace (182k positions, 160k total edits) typed by a single PositionSource, the average position length is **33 characters**, and the max length is 55.
+For the complete trace (182k positions, 160k total edits) typed by a single PositionSource, the average position length is **34 characters**, and the max length is 56.
 
-For a more realistic scenario with 260 PositionSources (a new one every 1,000 edits), the average position length is **104 characters**, and the max length is 220. "Rotating" PositionSources in this way simulates the effect of multiple users, or a single user who occasionally reloads the page. (The extra length comes from referencing multiple [IDs](#properties) per position: an average of 8 IDs/position x 8 chars/ID = 64 chars/position.)
+For a more realistic scenario with 260 PositionSources (a new one every 1,000 edits), the average position length is **112 characters**, and the max length is 238. "Rotating" PositionSources in this way simulates the effect of multiple users, or a single user who occasionally reloads the page. (The extra length comes from referencing multiple [IDs](#properties) per position: an average of 8 IDs/position x 8 chars/ID = 64 chars/position.)
 
-If we only consider the first 10,000 edits, the averages decrease to **23 characters** (single PositionSource) and **48 characters** (new PositionSource every 1,000 edits).
+If we only consider the first 10,000 edits, the averages decrease to **24 characters** (single PositionSource) and **51 characters** (new PositionSource every 1,000 edits).
 
 More stats for these four scenarios are in [stats.md](https://github.com/mweidner037/position-strings/blob/master/stats.md). For full data, run `npm run benchmarks` (after `npm ci`) and look in `benchmark_results/`.
 

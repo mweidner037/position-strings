@@ -6,10 +6,10 @@
 
 ### length
 
-- Average: 33
-- Median: 32
-- 99th percentile: 51
-- Max: 55
+- Average: 34
+- Median: 33
+- 99th percentile: 52
+- Max: 56
 
 ### longNodes
 
@@ -35,16 +35,16 @@
 ### PositionSource memory usage
 
 - Map size: 3333
-- Sum of map key lengths: 111946
+- Sum of map key lengths: 115279
 
 ## Run: all ops; rotate every 1000 ops
 
 ### length
 
-- Average: 104
-- Median: 102
-- 99th percentile: 191
-- Max: 220
+- Average: 112
+- Median: 110
+- 99th percentile: 207
+- Max: 238
 
 ### longNodes
 
@@ -70,16 +70,16 @@
 ### PositionSource memory usage
 
 - Map size: 20
-- Sum of map key lengths: 2395
+- Sum of map key lengths: 2594
 
 ## Run: 10000 ops; rotate never
 
 ### length
 
-- Average: 23
-- Median: 25
-- 99th percentile: 32
-- Max: 35
+- Average: 24
+- Median: 26
+- 99th percentile: 33
+- Max: 36
 
 ### longNodes
 
@@ -105,16 +105,16 @@
 ### PositionSource memory usage
 
 - Map size: 151
-- Sum of map key lengths: 3666
+- Sum of map key lengths: 3817
 
 ## Run: 10000 ops; rotate every 1000 ops
 
 ### length
 
-- Average: 48
-- Median: 47
-- 99th percentile: 81
-- Max: 81
+- Average: 51
+- Median: 50
+- 99th percentile: 87
+- Max: 87
 
 ### longNodes
 
@@ -140,5 +140,5 @@
 ### PositionSource memory usage
 
 - Map size: 7
-- Sum of map key lengths: 545
+- Sum of map key lengths: 587
 
