@@ -80,7 +80,8 @@ export class PositionSource {
    * It is okay to share a single PositionSource between
    * all documents (lists/text strings) in the same JavaScript runtime.
    *
-   * For efficiency, within each JavaScript runtime, you should not use
+   * For efficiency (shorter position strings),
+   * within each JavaScript runtime, you should not use
    * more than one PositionSource for the same document (list/text string).
    * An exception is if multiple logical users share the same runtime;
    * we then recommend one PositionSource per user.

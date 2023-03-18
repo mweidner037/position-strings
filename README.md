@@ -130,7 +130,8 @@ Constructs a new PositionSource.
 It is okay to share a single PositionSource between
 all documents (lists/text strings) in the same JavaScript runtime.
 
-For efficiency, within each JavaScript runtime, you should not use
+For efficiency (shorter position strings),
+within each JavaScript runtime, you should not use
 more than one PositionSource for the same document (list/text string).
 An exception is if multiple logical users share the same runtime;
 we then recommend one PositionSource per user.
@@ -384,7 +385,12 @@ If we only consider the first 10,000 edits, the averages decrease to **23 charac
 
 More stats for these four scenarios are in [stats.md](https://github.com/mweidner037/position-strings/blob/master/stats.md). For full data, run `npm run benchmarks` (after `npm ci`) and look in `benchmark_results/`.
 
-### Optimizing
+### Considerations
 
 - In realistic scenarios with multiple PositionSources, most of the positions' length comes from referencing [IDs](#properties). By default, IDs are 8 random alphanumeric characters to give a low probability of collisions, but you can pass your own shorter IDs to [PositionSource's constructor](#constructor). For example, you could assign IDs sequentially from a server.
 - A set of positions from the same list compress reasonably well together, since they represent different paths in the same tree. In particular, a list's worth of positions should compress well under prefix compression or gzip. However, compressing individual positions is not recommended.
+- TODO: degradation if not LtR, too many IDs or too-interacting.
+
+TODO: package version
+
+TODO: backtick PositionSource in README
