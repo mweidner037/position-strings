@@ -69,8 +69,8 @@ function run(ops?: number, rotateFreq?: number) {
     metrics.map((metric) => metric.nodes)
   );
   printStats(
-    "valueIndexCount",
-    metrics.map((metric) => metric.valueIndexCount)
+    "valueIndex",
+    metrics.map((metric) => metric.valueIndex)
   );
 
   // Estimate PositionSource memory usage.
@@ -88,11 +88,11 @@ function run(ops?: number, rotateFreq?: number) {
   if (!fs.existsSync(resultsDir)) fs.mkdirSync(resultsDir);
   const fileName = `results_${ops ?? "all"}_${rotateFreq ?? "never"}.csv`;
   const csv =
-    "Length,LongNodes,Nodes,ValueIndexCount\n" +
+    "length,longNodes,nodes,valueIndex\n" +
     metrics
       .map(
         (metric) =>
-          `${metric.length},${metric.longNodes},${metric.nodes},${metric.valueIndexCount}`
+          `${metric.length},${metric.longNodes},${metric.nodes},${metric.valueIndex}`
       )
       .join("\n");
   fs.writeFileSync(resultsDir + fileName, csv);
@@ -112,17 +112,17 @@ interface PositionMetric {
   /** The total number of tree nodes. */
   nodes: number;
   /**
-   * The "count" for the position's (final) valueIndex, i.e., its
-   * index in the enumeration of valueIndex's.
+   * The valueIndex. This is the normal, 0-indexed count of values
+   * in a row, not the valueSeq.
    */
-  valueIndexCount: number;
+  valueIndex: number;
 }
 
 function getLastWaypointChar(position: string): number {
   // Last waypoint char is the last '.' or digit.
-  // We know it's not the very last char (always a valueIndex).
+  // We know it's not the very last char (always a valueSeq).
   for (let i = position.length - 2; i >= 0; i--) {
-    const char = position.charAt(i);
+    const char = position[i];
     if (char === "." || ("0" <= char && char <= "9")) {
       // i is the last waypoint char, i.e., the end of the prefix.
       return i;
@@ -149,15 +149,15 @@ function getMetric(position: string): PositionMetric {
   }
   const longNodes = periods;
 
-  // Get valueIndex: after last waypoint char.
+  // Get valueSeq: after last waypoint char.
   const lastWaypointChar = getLastWaypointChar(position);
-  const valueIndex = parseBase52(position.slice(lastWaypointChar + 1));
+  const valueSeq = parseBase52(position.slice(lastWaypointChar + 1));
 
   return {
     length: position.length,
     longNodes,
     nodes: nodeCount(position),
-    valueIndexCount: lexSuccCount(valueIndex),
+    valueIndex: valueIndexFromSeq(valueSeq),
   };
 }
 
@@ -168,7 +168,7 @@ function nodeCount(position: string): number {
   // (end of a short name).
   let count = 0;
   for (let i = position.length - 1; i >= 0; i--) {
-    const char = position.charAt(i);
+    const char = position[i];
     if (char === ".") {
       // End of a long name.
       count++;
@@ -181,9 +181,9 @@ function nodeCount(position: string): number {
 }
 
 /**
- * Returns n's index in the lexSucc output sequence.
+ * Returns the valueIndex corresponding to the (odd) valueSeq n.
  */
-function lexSuccCount(n: number): number {
+function valueIndexFromSeq(n: number): number {
   const d = n === 0 ? 1 : Math.floor(Math.log(n) / Math.log(52)) + 1;
   // First d-digit number is 52^d - 52 * 26^(d-1); check how far
   // we are from there (= index in d-digit sequence)

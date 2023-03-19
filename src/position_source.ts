@@ -14,21 +14,21 @@ import { assert, LastInternal, precond } from "./util";
  * 4. Are unique, even if different users concurrently create positions
  * at the same place.
  *
- * PositionSource gives you such positions, in the form
+ * `PositionSource` gives you such positions, in the form
  * of lexicographically-ordered strings. Specifically, `createBetween`
  * returns a new position string in between two existing position strings.
  *
  * These strings have the bonus properties:
- * - 5. (Non-Interleaving) If two PositionSources concurrently create a (forward or backward)
+ * - 5. (Non-Interleaving) If two `PositionSource`s concurrently create a (forward or backward)
  * sequence of positions at the same place,
  * their sequences will not be interleaved.
  * For example, if
  * Alice types "Hello" while Bob types "World" at the same place,
- * and they each use a PositionSource to create a position for each
+ * and they each use a `PositionSource` to create a position for each
  * character, then
  * the resulting order will be "HelloWorld" or "WorldHello", not
  * "HWeolrllod".
- * - 6. If a PositionSource creates positions in a forward (increasing)
+ * - 6. If a `PositionSource` creates positions in a forward (increasing)
  * sequence, their lengths as strings will only grow logarithmically,
  * not linearly.
  *
@@ -40,7 +40,7 @@ import { assert, LastInternal, precond } from "./util";
  * - [Fractional indexing](https://www.figma.com/blog/realtime-editing-of-ordered-sequences/#fractional-indexing),
  * a related scheme that satisfies 1-3 but not 4-6.
  * - [List CRDTs](https://mattweidner.com/2022/10/21/basic-list-crdt.html)
- * and how they map to position strings. PositionSource uses an optimized
+ * and how they map to position strings. `PositionSource` uses an optimized
  * variant of that link's string implementation.
  * - [Paper](https://www.repository.cam.ac.uk/handle/1810/290391) about
  * interleaving in collaborative text editors.
@@ -60,7 +60,7 @@ export class PositionSource {
   static readonly LAST: string = LastInternal;
 
   /**
-   * The unique ID for this PositionSource.
+   * The unique ID for this `PositionSource`.
    */
   readonly ID: string;
   /**
@@ -70,29 +70,30 @@ export class PositionSource {
 
   /**
    * For each waypoint that we created, maps a prefix (see getPrefix)
-   * for that waypoint to its last (most recent) valueIndex.
+   * for that waypoint to its last (most recent) valueSeq.
+   * We always store the right-side version (odd valueSeq).
    */
-  private lastValueIndices = new Map<string, number>();
+  private lastValueSeq = new Map<string, number>();
 
   /**
-   * Constructs a new PositionSource.
+   * Constructs a new `PositionSource`.
    *
-   * It is okay to share a single PositionSource between
+   * It is okay to share a single `PositionSource` between
    * all documents (lists/text strings) in the same JavaScript runtime.
    *
    * For efficiency (shorter position strings),
    * within each JavaScript runtime, you should not use
-   * more than one PositionSource for the same document (list/text string).
+   * more than one `PositionSource` for the same document (list/text string).
    * An exception is if multiple logical users share the same runtime;
-   * we then recommend one PositionSource per user.
+   * we then recommend one `PositionSource` per user.
    *
-   * @param options.ID A unique ID for this PositionSource. Defaults to
+   * @param options.ID A unique ID for this `PositionSource`. Defaults to
    * `IDs.random()`.
    *
    * If provided, `options.ID` must satisfy:
    * - It is unique across the entire collaborative application, i.e.,
-   * all PositionSources whose positions may be compared to ours. This
-   * includes past PositionSources, even if they correspond to the same
+   * all `PositionSource`s whose positions may be compared to ours. This
+   * includes past `PositionSource`s, even if they correspond to the same
    * user/device.
    * - It does not contain `','` or `'.'`.
    * - The first character is lexicographically less than `'~'` (code point 126).
@@ -115,7 +116,7 @@ export class PositionSource {
    *
    * The new position is unique across the entire collaborative application,
    * even in the face on concurrent calls to this method on other
-   * PositionSources.
+   * `PositionSource`s.
    *
    * @param left Defaults to `PositionSource.FIRST` (insert at the beginning).
    *
@@ -156,15 +157,15 @@ export class PositionSource {
         // prefix (otherwise we would get ans > right by comparing right's
         // older valueIndex to our new valueIndex).
         const prefix = getPrefix(leftFixed);
-        const lastValueIndex = this.lastValueIndices.get(prefix);
+        const lastValueSeq = this.lastValueSeq.get(prefix);
         if (
-          lastValueIndex !== undefined &&
+          lastValueSeq !== undefined &&
           !(rightFixed !== null && rightFixed.startsWith(prefix))
         ) {
           // Reuse.
-          const valueIndex = nextValueIndex(lastValueIndex);
-          ans = prefix + stringifyBase52(valueIndex);
-          this.lastValueIndices.set(prefix, valueIndex);
+          const valueSeq = nextOddValueSeq(lastValueSeq);
+          ans = prefix + stringifyBase52(valueSeq);
+          this.lastValueSeq.set(prefix, valueSeq);
         } else {
           // New waypoint.
           ans = this.withNewWaypoint(leftFixed);
@@ -184,8 +185,8 @@ export class PositionSource {
     let waypointName = this.idName;
     // If our ID already appears in ancestor, instead use a short
     // name for the waypoint.
-    // Here we use the no-suffix rule for IDs plus the uniqueness of ',' to
-    // claim that if this.idName (= `${ID},`) appears in ancestor, then it
+    // Here we use the uniqueness of ',' and '.' to
+    // claim that if this.idName (= `,${ID}.`) appears in ancestor, then it
     // must actually be from a waypoint that we created.
     const existing = ancestor.lastIndexOf(this.idName);
     if (existing !== -1) {
@@ -194,27 +195,28 @@ export class PositionSource {
       // each idName ends with '.' and that '.' does not appear otherwise.
       let index = -1;
       for (let i = existing; i < ancestor.length; i++) {
-        if (ancestor.charAt(i) === ".") index++;
+        if (ancestor[i] === ".") index++;
       }
       waypointName = stringifyShortName(index);
     }
 
-    // valueIndex starts at 1, since it's always odd.
-    this.lastValueIndices.set(ancestor + waypointName, 1);
+    // Start at 1, since we always store the odd valueSeq, and
+    // the odd version of valueIndex = 0 is valueSeq = 1.
+    this.lastValueSeq.set(ancestor + waypointName, 1);
     return ancestor + waypointName + stringifyBase52(1);
   }
 }
 
 /**
  * Returns position's *prefix*: the string through the last waypoint
- * name, or equivalently, without the final valueIndex.
+ * name, or equivalently, without the final valueSeq.
  */
 function getPrefix(position: string): string {
   // Last waypoint char is the last '.' (for long names) or
-  // digit (for short names). Note that neither appear in valueIndex,
+  // digit (for short names). Note that neither appear in valueSeq,
   // which is all letters.
   for (let i = position.length - 2; i >= 0; i--) {
-    const char = position.charAt(i);
+    const char = position[i];
     if (char === "." || ("0" <= char && char <= "9")) {
       // i is the last waypoint char, i.e., the end of the prefix.
       return position.slice(0, i + 1);
@@ -231,9 +233,10 @@ function getPrefix(position: string): string {
  * I.e., the ancestor for position's left descendants.
  */
 function leftVersion(position: string) {
-  const last = parseBase52(position.charAt(position.length - 1));
-  // last should be an odd base52 number. Subtract 1, making it even.
-  assert(last % 2 === 1, "Bad valueIndex (not a position?)", last, position);
+  const last = parseBase52(position[position.length - 1]);
+  // We need to subtract one from the (odd) valueSeq, equivalently, from
+  // its last base52 digit.
+  assert(last % 2 === 1, "Bad valueSeq (not a position?)", last, position);
   return position.slice(0, -1) + stringifyBase52(last - 1);
 }
 
@@ -278,10 +281,12 @@ function parseBase52(s: string): number {
 const log52 = Math.log(52);
 
 /**
- * Returns the next valueIndex in their special enumeration.
+ * Returns the next odd valueSeq in the special sequence.
+ * This is equivalent to mapping n to its valueIndex, adding 2,
+ * then mapping back.
  *
- * The enumeration has the following properties:
- * 1. Each number is an odd, nonnegative integer (however, not all
+ * The sequence has the following properties:
+ * 1. Each number is a nonnegative integer (however, not all
  * such integers are enumerated).
  * 2. The number's base-52 representations are enumerated in
  * lexicographic order, with no prefixes (i.e., no string
@@ -294,7 +299,7 @@ const log52 = Math.log(52);
  * the numbers are in order by magnitude, although we do not
  * use this property.
  *
- * The specific enumeration is the following one restricted to odd numbers:
+ * The specific sequence is the following one:
  * - Start with 0.
  * - Enumerate 26^1 numbers (A, B, ..., Z).
  * - Add 1, multiply by 52, then enumerate 26^2 numbers
@@ -310,7 +315,7 @@ const log52 = Math.log(52);
  * I believe this is related to
  * [Elias gamma coding](https://en.wikipedia.org/wiki/Elias_gamma_coding).
  */
-function nextValueIndex(n: number): number {
+function nextOddValueSeq(n: number): number {
   const d = n === 0 ? 1 : Math.floor(Math.log(n) / log52) + 1;
   // You can calculate that the last d-digit number is 52^d - 26^d - 1.
   if (n === Math.pow(52, d) - Math.pow(26, d) - 1) {

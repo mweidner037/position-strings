@@ -111,7 +111,7 @@ export class IDs {
    */
   static validate(id: string): void {
     precond(id < LastInternal, "ID must be less than", LastInternal, ":", id);
-    precond(id.indexOf(",") === -1, "ID must not contain ',':", id);
-    precond(id.indexOf(".") === -1, "ID must not contain '.':", id);
+    precond(!id.includes(","), "ID must not contain ',':", id);
+    precond(!id.includes("."), "ID must not contain '.':", id);
   }
 }

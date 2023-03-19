@@ -51,7 +51,7 @@ Also, the special string `PositionSource.LAST` is `'~'`.
 - [Fractional indexing](https://www.figma.com/blog/realtime-editing-of-ordered-sequences/#fractional-indexing),
   a related scheme that satisfies 1-3 but not 4-6.
 - [List CRDTs](https://mattweidner.com/2022/10/21/basic-list-crdt.html)
-  and how they map to position strings. PositionSource uses an optimized
+  and how they map to position strings. `PositionSource` uses an optimized
   variant of that link's string implementation, described in
   [algorithm.md](https://github.com/mweidner037/position-strings/blob/master/algorithm.md).
 - [Paper](https://www.repository.cam.ac.uk/handle/1810/290391) about
@@ -125,25 +125,25 @@ cursorIndex = Cursors.toIndex(cursor, myListPositions);
 constructor(options?: { ID?: string })
 ```
 
-Constructs a new PositionSource.
+Constructs a new `PositionSource`.
 
-It is okay to share a single PositionSource between
+It is okay to share a single `PositionSource` between
 all documents (lists/text strings) in the same JavaScript runtime.
 
 For efficiency (shorter position strings),
 within each JavaScript runtime, you should not use
-more than one PositionSource for the same document (list/text string).
+more than one `PositionSource` for the same document (list/text string).
 An exception is if multiple logical users share the same runtime;
-we then recommend one PositionSource per user.
+we then recommend one `PositionSource` per user.
 
-_@param_ `options.ID` A unique ID for this PositionSource. Defaults to
+_@param_ `options.ID` A unique ID for this `PositionSource`. Defaults to
 `IDs.random()`.
 
 If provided, `options.ID` must satisfy:
 
 - It is unique across the entire collaborative application, i.e.,
-  all PositionSources whose positions may be compared to ours. This
-  includes past PositionSources, even if they correspond to the same
+  all `PositionSource`s whose positions may be compared to ours. This
+  includes past `PositionSource`s, even if they correspond to the same
   user/device.
 - It does not contain `','` or `'.'`.
 - The first character is lexicographically less than `'~'` (code point 126).
@@ -166,7 +166,7 @@ Returns a new position between `left` and `right`
 
 The new position is unique across the entire collaborative application,
 even in the face on concurrent calls to this method on other
-PositionSources.
+`PositionSource`s.
 
 _@param_ `left` Defaults to `PositionSource.FIRST` (insert at the beginning).
 
@@ -178,7 +178,7 @@ _@param_ `right` Defaults to `PositionSource.LAST` (insert at the end).
 readonly ID: string
 ```
 
-The unique ID for this PositionSource.
+The unique ID for this `PositionSource`.
 
 ```ts
 static readonly FIRST: string = ""
@@ -370,24 +370,20 @@ The app also demonstrates using `Cursors` to track the local user's selection st
 
 _Position string length_ is our main performance metric. This determines the memory, storage, and network overhead due to a collaborative list's positions.
 
-> PositionSource also uses some memory, and `PositionSource.createBetween` takes some time, but these are usually small enough to be ignored.
+> Additionally, each `PositionSource` instance uses some memory, and `PositionSource.createBetween` takes some time, but these are usually small enough to ignore.
 
-To measure position string length in a realistic setting, we benchmark them against [Martin Kleppmann's text trace](https://github.com/automerge/automerge-perf). That is, we pretend a user is typing into a collaborative text editor that attaches a position string to each character, then output statistics for those positions.
+To measure position string length in a realistic setting, we benchmark against [Martin Kleppmann's text trace](https://github.com/automerge/automerge-perf). That is, we pretend a user is typing into a collaborative text editor that attaches a position string to each character, then output statistics for those positions.
 
-For the complete trace (182k positions, 160k total edits) typed by a single PositionSource, the average position length is **34 characters**, and the max length is 56.
+For the complete trace (182k positions, 160k total edits) typed by a single `PositionSource`, the average position length is **34 characters**, and the max length is 56.
 
-For a more realistic scenario with 260 PositionSources (a new one every 1,000 edits), the average position length is **112 characters**, and the max length is 238. "Rotating" PositionSources in this way simulates the effect of multiple users, or a single user who occasionally reloads the page. (The extra length comes from referencing multiple [IDs](#properties) per position: an average of 8 IDs/position x 8 chars/ID = 64 chars/position.)
+For a more realistic scenario with 260 `PositionSource`s (a new one every 1,000 edits), the average position length is **112 characters**, and the max length is 238. "Rotating" `PositionSource`s in this way simulates the effect of multiple users, or a single user who occasionally reloads the page. (The extra length comes from referencing multiple [IDs](#properties) per position: an average of 8 IDs/position x 8 chars/ID = 64 chars/position.)
 
-If we only consider the first 10,000 edits, the averages decrease to **24 characters** (single PositionSource) and **51 characters** (new PositionSource every 1,000 edits).
+If we only consider the first 10,000 edits, the averages decrease to **24 characters** (single `PositionSource`) and **51 characters** (new `PositionSource` every 1,000 edits).
 
 More stats for these four scenarios are in [stats.md](https://github.com/mweidner037/position-strings/blob/master/stats.md). For full data, run `npm run benchmarks` (after `npm ci`) and look in `benchmark_results/`.
 
 ### Considerations
 
-- In realistic scenarios with multiple PositionSources, most of the positions' length comes from referencing [IDs](#properties). By default, IDs are 8 random alphanumeric characters to give a low probability of collisions, but you can pass your own shorter IDs to [PositionSource's constructor](#constructor). For example, you could assign IDs sequentially from a server.
-- A set of positions from the same list compress reasonably well together, since they represent different paths in the same tree. In particular, a list's worth of positions should compress well under prefix compression or gzip. However, compressing individual positions is not recommended.
-- TODO: degradation if not LtR, too many IDs or too-interacting.
-
-TODO: package version
-
-TODO: backtick PositionSource in README
+- In realistic scenarios with multiple `PositionSource`s, most of the positions' length comes from referencing [IDs](#properties). By default, IDs are 8 random alphanumeric characters to give a low probability of collisions, but you can pass your own shorter IDs to [`PositionSource`'s constructor](#constructor). For example, you could assign IDs sequentially from a server.
+- A set of positions from the same list compress reasonably well together, since they represent different paths in the same tree. In particular, a list's worth of positions should compress well under gzip or prefix compression. However, compressing individual positions is not recommended.
+- [`PositionSource.createBetween`](#createbetween) is optimized for left-to-right insertions. If you primarily insert right-to-left or at random, you will see worse performance.

@@ -45,7 +45,7 @@ Indeed, then there is some index `j` such that `f(aPath[i], i).charAt(j) < f(bPa
 One working `f` is defined as follows, with a different rule for each layer type:
 
 1. (Waypoint nodes) Map the node's label (an ID) to `` `,${ID}.` ``. The period, which is not allowed in IDs, ensures the no-prefix rule (b).
-2. (valueIndex nodes) Map the valueIndex into a special enumeration of numbers that is in lexicographic order and has no prefixes (when base52 encoded), then base52 encode that number. You can read about the enumeration we use in the comment above [`position_source.ts`](./src/position_source.ts)'s `nextValueIndex` function.
+2. (valueIndex nodes) Map the valueIndex to its _valueSeq_: its entry in a special sequence of numbers that is in lexicographic order and has no prefixes (when base52 encoded). You can read about the sequence we use in the comment above [`position_source.ts`](./src/position_source.ts)'s `nextOddValueSeq` function.
 3. (Side nodes) Map "left side" to `"0"` and "right side" to `"1"`.
 
 ### Optimizations
@@ -54,6 +54,4 @@ In the actual implementation, we optimize the above string representation in two
 
 First, for waypoint nodes, we only use each "long name" `` `,${ID}.` `` once per position string. If the same ID occurs later in the same path, those nodes get a "short name" that is just an index into the list of prior long names. Index `n` is encoded as `base52(n // 10) + base10(n % 10)`. The set of all waypoint names following a given path is still unique, which ensures rule (a) for some arbitrary order (thought not necessarily the order on IDs); and they are prefix-free (rule (b)) due to short names' special ending digit and long names' special starting comma and ending period.
 
-Second, instead of giving each side node a whole character, we give it the last bit in the preceding valueIndex. Specifically, before mapping valueIndex into its special enumeration, we double it, then add 1 if the side is "right side".
-
-TODO: In the actual code, we use valueIndex to refer to the combined valueIndex + enumeration + side bit, instead of the original valueIndex. (Change?)
+Second, instead of giving each side node a whole character, we give it the last bit in the preceding valueSeq. Specifically, we go by twos in the special sequence, then add 1 if the side is "right".
