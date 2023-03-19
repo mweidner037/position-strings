@@ -75,12 +75,12 @@ function run(ops?: number, rotateFreq?: number) {
 
   // Estimate PositionSource memory usage.
   // @ts-expect-error Private access
-  const lastValueIndices = source.lastValueIndices;
-  const keyLengths = [...lastValueIndices.keys()]
+  const lastValueSeqs = source.lastValueSeqs;
+  const keyLengths = [...lastValueSeqs.keys()]
     .map((prefix) => prefix.length)
     .reduce((a, b) => a + b, 0);
   console.log("### PositionSource memory usage\n");
-  console.log("- Map size:", lastValueIndices.size);
+  console.log("- Map size:", lastValueSeqs.size);
   console.log("- Sum of map key lengths:", keyLengths);
   console.log();
 

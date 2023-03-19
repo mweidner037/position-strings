@@ -20,9 +20,9 @@ The 3 node/layer types are:
 
 In terms of the tree structure, `Position.createBetween(left, right)` does the following:
 
-1. If `right` is a descendant of `left`, create a left descendant of `right` as follows. First, create a new waypoint node that is a left child of `right` (replacing `right`'s final "right side" bit with "left side"). Then append a valueIndex 0 node and a "right side" node, to fill out the 3 layers. Return that final node.
+1. If `right` is a descendant of `left`, create a left descendant of `right` as follows. First, create a new waypoint node that is a left child of `right` (replacing `right`'s final "right side" bit with "left side"). Then append the next new valueIndex node (usually 0) and a "right side" node, to fill out the 3 layers. Return that final node.
 2. Otherwise, see if we can just increase `left`'s final valueIndex, instead of lengthing its path. This is allowed if (a) `left`'s final waypoint node uses our ID, and (b) `right` doesn't use that same waypoint node. If so, look up the next unused valueIndex for that waypoint (stored in `PositionSource`), then use `left` but with that final valueIndex.
-3. If not, create a right descendant of `left` like in case 1: append a new waypoint node, then valueIndex 0, then "right side"; return that final node.
+3. If not, create a right descendant of `left` like in case 1: append a new waypoint node, the next new valueIndex, then "right side"; return that final node.
 
 You can check that the resulting node lies between `left` and `right`, and that this procedure satisfies properties 4-6 from the [README](./README.md).
 

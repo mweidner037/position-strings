@@ -1,5 +1,5 @@
 
-> position-strings@1.0.3 benchmarks
+> position-strings@2.0.0 benchmarks
 > ts-node --project tsconfig.dev.json benchmarks/main.ts
 
 ## Run: all ops; rotate never
@@ -25,17 +25,17 @@
 - 99th percentile: 15
 - Max: 17
 
-### valueIndexCount
+### valueIndex
 
-- Average: 565
-- Median: 204
-- 99th percentile: 4786
-- Max: 6207
+- Average: 615
+- Median: 208
+- 99th percentile: 5780
+- Max: 7603
 
 ### PositionSource memory usage
 
 - Map size: 3333
-- Sum of map key lengths: 115279
+- Sum of map key lengths: 115367
 
 ## Run: all ops; rotate every 1000 ops
 
@@ -60,10 +60,10 @@
 - 99th percentile: 24
 - Max: 26
 
-### valueIndexCount
+### valueIndex
 
 - Average: 185
-- Median: 107
+- Median: 108
 - 99th percentile: 851
 - Max: 999
 
@@ -95,7 +95,7 @@
 - 99th percentile: 8
 - Max: 9
 
-### valueIndexCount
+### valueIndex
 
 - Average: 293
 - Median: 183
@@ -130,7 +130,7 @@
 - 99th percentile: 11
 - Max: 12
 
-### valueIndexCount
+### valueIndex
 
 - Average: 173
 - Median: 113

@@ -73,7 +73,7 @@ export class PositionSource {
    * for that waypoint to its last (most recent) valueSeq.
    * We always store the right-side version (odd valueSeq).
    */
-  private lastValueSeq = new Map<string, number>();
+  private lastValueSeqs = new Map<string, number>();
 
   /**
    * Constructs a new `PositionSource`.
@@ -157,7 +157,7 @@ export class PositionSource {
         // prefix (otherwise we would get ans > right by comparing right's
         // older valueIndex to our new valueIndex).
         const prefix = getPrefix(leftFixed);
-        const lastValueSeq = this.lastValueSeq.get(prefix);
+        const lastValueSeq = this.lastValueSeqs.get(prefix);
         if (
           lastValueSeq !== undefined &&
           !(rightFixed !== null && rightFixed.startsWith(prefix))
@@ -165,7 +165,7 @@ export class PositionSource {
           // Reuse.
           const valueSeq = nextOddValueSeq(lastValueSeq);
           ans = prefix + stringifyBase52(valueSeq);
-          this.lastValueSeq.set(prefix, valueSeq);
+          this.lastValueSeqs.set(prefix, valueSeq);
         } else {
           // New waypoint.
           ans = this.withNewWaypoint(leftFixed);
@@ -180,6 +180,9 @@ export class PositionSource {
   /**
    * Creates (& stores) a new waypoint with the given ancestor (= prefix
    * adjusted for side), returning the position.
+   *
+   * Except, if there's already an identical waypoint (which neither left
+   * nor right uses), reuse it with the next valueIndex.
    */
   private withNewWaypoint(ancestor: string): string {
     let waypointName = this.idName;
@@ -200,10 +203,14 @@ export class PositionSource {
       waypointName = stringifyShortName(index);
     }
 
-    // Start at 1, since we always store the odd valueSeq, and
-    // the odd version of valueIndex = 0 is valueSeq = 1.
-    this.lastValueSeq.set(ancestor + waypointName, 1);
-    return ancestor + waypointName + stringifyBase52(1);
+    const prefix = ancestor + waypointName;
+    const lastValueSeq = this.lastValueSeqs.get(prefix);
+    // Unless we're in the exception case (reuse), start at valueSeq
+    // 1 (right side).
+    const valueSeq =
+      lastValueSeq === undefined ? 1 : nextOddValueSeq(lastValueSeq);
+    this.lastValueSeqs.set(prefix, valueSeq);
+    return prefix + stringifyBase52(valueSeq);
   }
 }
 
