@@ -11,14 +11,14 @@
 - 99th percentile: 51
 - Max: 55
 
-### longNodes
+### longNames
 
 - Average: 1
 - Median: 1
 - 99th percentile: 1
 - Max: 1
 
-### nodes
+### waypoints
 
 - Average: 9
 - Median: 8
@@ -46,14 +46,14 @@
 - 99th percentile: 206
 - Max: 237
 
-### longNodes
+### longNames
 
 - Average: 8
 - Median: 8
 - 99th percentile: 16
 - Max: 18
 
-### nodes
+### waypoints
 
 - Average: 13
 - Median: 13
@@ -81,14 +81,14 @@
 - 99th percentile: 32
 - Max: 35
 
-### longNodes
+### longNames
 
 - Average: 1
 - Median: 1
 - 99th percentile: 1
 - Max: 1
 
-### nodes
+### waypoints
 
 - Average: 5
 - Median: 6
@@ -116,14 +116,14 @@
 - 99th percentile: 86
 - Max: 86
 
-### longNodes
+### longNames
 
 - Average: 3
 - Median: 3
 - 99th percentile: 6
 - Max: 6
 
-### nodes
+### waypoints
 
 - Average: 7
 - Median: 7

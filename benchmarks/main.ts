@@ -54,19 +54,18 @@ function run(ops?: number, rotateFreq?: number) {
   }
 
   // Print summary stats.
-  // Note: collecting & summarizing data contributes a noticable
-  // fraction of the runtime.
+  // Note that collecting stats increases the runtime.
   printStats(
     "length",
     metrics.map((metric) => metric.length)
   );
   printStats(
-    "longNodes",
-    metrics.map((metric) => metric.longNodes)
+    "longNames",
+    metrics.map((metric) => metric.longNames)
   );
   printStats(
-    "nodes",
-    metrics.map((metric) => metric.nodes)
+    "waypoints",
+    metrics.map((metric) => metric.waypoints)
   );
   printStats(
     "valueIndex",
@@ -88,11 +87,11 @@ function run(ops?: number, rotateFreq?: number) {
   if (!fs.existsSync(resultsDir)) fs.mkdirSync(resultsDir);
   const fileName = `results_${ops ?? "all"}_${rotateFreq ?? "never"}.csv`;
   const csv =
-    "length,longNodes,nodes,valueIndex\n" +
+    "length,longNames,waypoints,valueIndex\n" +
     metrics
       .map(
         (metric) =>
-          `${metric.length},${metric.longNodes},${metric.nodes},${metric.valueIndex}`
+          `${metric.length},${metric.longNames},${metric.waypoints},${metric.valueIndex}`
       )
       .join("\n");
   fs.writeFileSync(resultsDir + fileName, csv);
@@ -105,12 +104,12 @@ interface PositionMetric {
   /** The position's length. */
   length: number;
   /**
-   * The number of tree nodes using long waypoint names.
+   * The number of waypoints using long names.
    * Equivalently, the number of full IDs in the string.
    */
-  longNodes: number;
-  /** The total number of tree nodes. */
-  nodes: number;
+  longNames: number;
+  /** The total number of waypoints. */
+  waypoints: number;
   /**
    * The valueIndex. This is the normal, 0-indexed count of values
    * in a row, not the valueSeq.
@@ -142,12 +141,12 @@ function parseBase52(s: string): number {
 }
 
 function getMetric(position: string): PositionMetric {
-  // Nodes = # periods, since we end each ID with one.
+  // longNames = # periods, since we end each ID with one.
   let periods = 0;
   for (const char of position) {
     if (char === ".") periods++;
   }
-  const longNodes = periods;
+  const longNames = periods;
 
   // Get valueSeq: after last waypoint char.
   const lastWaypointChar = getLastWaypointChar(position);
@@ -155,17 +154,18 @@ function getMetric(position: string): PositionMetric {
 
   return {
     length: position.length,
-    longNodes,
-    nodes: nodeCount(position),
+    longNames,
+    waypoints: waypointCount(position),
     valueIndex: valueIndexFromSeq(valueSeq),
   };
 }
 
-function nodeCount(position: string): number {
-  // One node per:
+function waypointCount(position: string): number {
+  // One waypoint per:
   // - '.' (end of a long name)
   // - Digit outside of a long name
   // (end of a short name).
+  let inLongName = false;
   let count = 0;
   for (let i = position.length - 1; i >= 0; i--) {
     const char = position[i];
@@ -174,7 +174,9 @@ function nodeCount(position: string): number {
       count++;
       // Skip the rest of the long name in case in contains
       // a non-short-name digit.
-      i -= IDs.DEFAULT_LENGTH;
+      inLongName = true;
+    } else if (inLongName) {
+      if (char === ",") inLongName = false;
     } else if ("0" <= char && char <= "9") count++;
   }
   return count;
