@@ -374,11 +374,11 @@ _Position string length_ is our main performance metric. This determines the mem
 
 To measure position string length in a realistic setting, we benchmark against [Martin Kleppmann's text trace](https://github.com/automerge/automerge-perf). That is, we pretend a user is typing into a collaborative text editor that attaches a position string to each character, then output statistics for those positions.
 
-For the complete trace (182k positions, 260k total edits) typed by a single `PositionSource`, the average position length is **34 characters**, and the max length is 56.
+For the complete trace (182k positions, 260k total edits) typed by a single `PositionSource`, the average position length is **33 characters**, and the max length is 55.
 
-For a more realistic scenario with 260 `PositionSource`s (a new one every 1,000 edits), the average position length is **112 characters**, and the max length is 238. "Rotating" `PositionSource`s in this way simulates the effect of multiple users, or a single user who occasionally reloads the page. (The extra length comes from referencing multiple [IDs](#properties) per position: an average of 8 IDs/position x 8 chars/ID = 64 chars/position.)
+For a more realistic scenario with 260 `PositionSource`s (a new one every 1,000 edits), the average position length is **111 characters**, and the max length is 237. "Rotating" `PositionSource`s in this way simulates the effect of multiple users, or a single user who occasionally reloads the page. (The extra length comes from referencing multiple [IDs](#properties) per position: an average of 8 IDs/position x 8 chars/ID = 64 chars/position.)
 
-If we only consider the first 10,000 edits, the averages decrease to **24 characters** (single `PositionSource`) and **51 characters** (new `PositionSource` every 1,000 edits).
+If we only consider the first 10,000 edits, the averages decrease to **23 characters** (single `PositionSource`) and **50 characters** (new `PositionSource` every 1,000 edits).
 
 More stats for these four scenarios are in [stats.md](https://github.com/mweidner037/position-strings/blob/master/stats.md). For full data, run `npm run benchmarks` (after `npm ci`) and look in `benchmark_results/`.
 

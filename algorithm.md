@@ -50,8 +50,10 @@ One working `f` is defined as follows, with a different rule for each layer type
 
 ### Optimizations
 
-In the actual implementation, we optimize the above string representation in two ways.
+In the actual implementation, we optimize the above string representation in a few ways.
 
 First, for waypoint nodes, we only use each "long name" `` `,${ID}.` `` once per position string. If the same ID occurs later in the same path, those nodes get a "short name" that is just an index into the list of prior long names. Index `n` is encoded as `base52(n // 10) + base10(n % 10)`. The set of all waypoint names following a given path is still unique, which ensures rule (i) for some arbitrary order on IDs (not necessarily lexicographic); and they are prefix-free (rule (ii)) due to short names' special ending digit and long names' special starting comma and ending period.
 
 Second, instead of giving each side node a whole character, we give it the last bit in the preceding valueSeq. Specifically, we go by twos in the special sequence, then add 1 if the side is "right".
+
+Third, for the first waypoint node, we use `` `${ID}.` `` (no comma) instead of the long name `` `,${ID}.` ``. Otherwise, every position would start with a redundant `','`.

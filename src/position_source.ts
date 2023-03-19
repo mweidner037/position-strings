@@ -67,6 +67,11 @@ export class PositionSource {
    * Our waypoints' long name: `,${ID}.`.
    */
   private readonly longName: string;
+  /**
+   * Variant of longName used for a position's first ID: `${ID}.`.
+   * (Otherwise every position would start with a redundant ','.)
+   */
+  private readonly firstName: string;
 
   /**
    * For each waypoint that we created, maps a prefix (see getPrefix)
@@ -108,6 +113,7 @@ export class PositionSource {
     }
     this.ID = options?.ID ?? IDs.random();
     this.longName = `,${this.ID}.`;
+    this.firstName = `${this.ID}.`;
   }
 
   /**
@@ -151,7 +157,7 @@ export class PositionSource {
       // Right child of left.
       if (leftFixed === null) {
         // ancestor is FIRST.
-        ans = this.appendWaypoint(PositionSource.FIRST);
+        ans = this.appendWaypoint("");
       } else {
         // Check if we can reuse left's prefix.
         // It needs to be one of ours, and right can't use the same
@@ -185,13 +191,14 @@ export class PositionSource {
    * lastValueSeqs is also updated as needed for the waypoint.
    */
   private appendWaypoint(ancestor: string): string {
-    let waypointName = this.longName;
+    let waypointName = ancestor === "" ? this.firstName : this.longName;
     // If our ID already appears in ancestor, instead use a short
     // name for the waypoint.
     // Here we use the uniqueness of ',' and '.' to
     // claim that if this.longName (= `,${ID}.`) appears in ancestor, then it
     // must actually be from a waypoint that we created.
-    const existing = ancestor.lastIndexOf(this.longName);
+    let existing = ancestor.lastIndexOf(this.longName);
+    if (ancestor.startsWith(this.firstName)) existing = 0;
     if (existing !== -1) {
       // Find the index of existing among the long-name
       // waypoints, in backwards order. Here we use the fact that
