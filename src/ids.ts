@@ -38,7 +38,7 @@ export class IDs {
    * @param options.chars The characters to draw from. Default: `IDs.DEFAULT_CHARS`.
    *
    * If specified, only the first 256 elements are used, and you achieve
-   * about `floor(log_2(chars.length))` bits of entropy per `length`.
+   * about `log_2(chars.length)` bits of entropy per `length`.
    */
   static random(options?: { length?: number; chars?: string }): string {
     const length = options?.length ?? this.DEFAULT_LENGTH;
@@ -85,7 +85,7 @@ export class IDs {
    * @param options.chars The characters to draw from. Default: `IDs.DEFAULT_CHARS`.
    *
    * If specified, only the first 256 elements are used, and you achieve
-   * about `floor(log_2(chars.length))` bits of entropy per `length`.
+   * about `log_2(chars.length)` bits of entropy per `length`.
    */
   static pseudoRandom(
     rng: seedrandom.prng,

@@ -14,15 +14,15 @@ The 3 node/layer types are:
 
 1. **Waypoint nodes**: Labeled by the ID of the `PositionSource` that created it, sorted arbitrarily. The ID ensures that positions created by different `PositionSource`s are distinct: each `PositionSource` only returns positions whose _final_ waypoint node uses its own ID.
 2. **valueIndex nodes**: Labeled by an integer, sorted by magnitude. When a `PositionSource` creates positions in a left-to-right sequence, instead of appending a new waypoint node each time, it reuses the first waypoint node and just increases the valueIndex. That causes the position string length to grow logarithmically instead of linearly.
-3. **Side nodes**: Labeled by a bit "left side" (0) or "right side" (1). The actual position at a node, and all of the node's right-side descendants, use "right side"; all of its left-side descendants use "left side". We then acheive the in-order traveral order (left descendants) < (node itself) < (right descendants), by setting "left side" < "right side" and by sorting each path before its suffixes (like lexicographic order).
+3. **Side nodes**: Labeled by a bit "left side" (0) or "right side" (1). The actual position at a node, and all of the node's right-side descendants, use "right side"; all of its left-side descendants use "left side". This ensures that all left descendants are less than the position at a node, which is less than all right descendants.
 
 ### `createBetween`
 
-In terms of the tree structure, `Position.createBetween(left, right)` does the following:
+In terms of the tree structure, `PositionSource.createBetween(left, right)` does the following:
 
-1. If `right` is a descendant of `left`, create a left descendant of `right` as follows. First, create a new waypoint node that is a left child of `right` (replacing `right`'s final "right side" bit with "left side"). Then append the next new valueIndex node (usually 0) and a "right side" node, to fill out the 3 layers. Return that final node.
+1. If `right` is a descendant of `left`, create a left descendant of `right` as follows. First, create a waypoint node that is a left child of `right` (replacing `right`'s final "right side" bit with "left side"). Then append the next new valueIndex node (usually 0) and a "right side" node, to fill out the 3 layers. Return that final node.
 2. Otherwise, see if we can just increase `left`'s final valueIndex, instead of lengthing its path. This is allowed if (a) `left`'s final waypoint node uses our ID, and (b) `right` doesn't use that same waypoint node. If so, look up the next unused valueIndex for that waypoint (stored in `PositionSource`), then use `left` but with that final valueIndex.
-3. If not, create a right descendant of `left` like in case 1: append a new waypoint node, the next new valueIndex, then "right side"; return that final node.
+3. If not, create a right descendant of `left` like in case 1: append a waypoint node, the next new valueIndex, then "right side"; return that final node.
 
 You can check that the resulting node lies between `left` and `right`, and that this procedure satisfies properties 4-6 from the [README](./README.md).
 
@@ -44,7 +44,7 @@ Indeed, then there is some index `j` such that `f(aPath[i], i).charAt(j) < f(bPa
 
 One working `f` is defined as follows, with a different rule for each layer type:
 
-1. (Waypoint nodes) Map the node's label (an ID) to `` `,${ID}.` ``. The period, which is not allowed in IDs, ensures the no-prefix rule (b).
+1. (Waypoint nodes) Map the node's label (an ID) to `` `,${ID}.` ``. The period, which is not allowed in IDs, ensures the no-prefix rule (ii).
 2. (valueIndex nodes) Map the valueIndex to its _valueSeq_: its entry in a special sequence of numbers that is in lexicographic order and has no prefixes (when base52 encoded). You can read about the sequence we use in the comment above [`position_source.ts`](./src/position_source.ts)'s `nextOddValueSeq` function.
 3. (Side nodes) Map "left side" to `"0"` and "right side" to `"1"`.
 
@@ -52,6 +52,6 @@ One working `f` is defined as follows, with a different rule for each layer type
 
 In the actual implementation, we optimize the above string representation in two ways.
 
-First, for waypoint nodes, we only use each "long name" `` `,${ID}.` `` once per position string. If the same ID occurs later in the same path, those nodes get a "short name" that is just an index into the list of prior long names. Index `n` is encoded as `base52(n // 10) + base10(n % 10)`. The set of all waypoint names following a given path is still unique, which ensures rule (a) for some arbitrary order (thought not necessarily the order on IDs); and they are prefix-free (rule (b)) due to short names' special ending digit and long names' special starting comma and ending period.
+First, for waypoint nodes, we only use each "long name" `` `,${ID}.` `` once per position string. If the same ID occurs later in the same path, those nodes get a "short name" that is just an index into the list of prior long names. Index `n` is encoded as `base52(n // 10) + base10(n % 10)`. The set of all waypoint names following a given path is still unique, which ensures rule (i) for some arbitrary order on IDs (not necessarily lexicographic); and they are prefix-free (rule (ii)) due to short names' special ending digit and long names' special starting comma and ending period.
 
 Second, instead of giving each side node a whole character, we give it the last bit in the preceding valueSeq. Specifically, we go by twos in the special sequence, then add 1 if the side is "right".

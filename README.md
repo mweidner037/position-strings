@@ -21,9 +21,9 @@ to "positions" within that list that:
 4. Are unique, even if different users concurrently create positions
    at the same place.
 
-`PositionSource` gives you such positions, in the form
+This package gives you such positions, in the form
 of lexicographically-ordered strings. Specifically, `PositionSource.createBetween`
-returns a new position string in between two existing position strings.
+returns a new "position string" in between two existing position strings.
 
 These strings have the bonus properties:
 
@@ -54,8 +54,8 @@ Also, the special string `PositionSource.LAST` is `'~'`.
   and how they map to position strings. `PositionSource` uses an optimized
   variant of that link's string implementation, described in
   [algorithm.md](https://github.com/mweidner037/position-strings/blob/master/algorithm.md).
-- [Paper](https://www.repository.cam.ac.uk/handle/1810/290391) about
-  interleaving in collaborative text editors.
+- [Paper about interleaving](https://www.repository.cam.ac.uk/handle/1810/290391)
+  in collaborative text editors.
 
 ## Usage
 
@@ -132,7 +132,7 @@ all documents (lists/text strings) in the same JavaScript runtime.
 
 For efficiency (shorter position strings),
 within each JavaScript runtime, you should not use
-more than one `PositionSource` for the same document (list/text string).
+more than one `PositionSource` for the same document.
 An exception is if multiple logical users share the same runtime;
 we then recommend one `PositionSource` per user.
 
@@ -165,7 +165,7 @@ Returns a new position between `left` and `right`
 (`left < new < right`).
 
 The new position is unique across the entire collaborative application,
-even in the face on concurrent calls to this method on other
+even in the face of concurrent calls to this method on other
 `PositionSource`s.
 
 _@param_ `left` Defaults to `PositionSource.FIRST` (insert at the beginning).
@@ -213,12 +213,12 @@ instead of an array), you can instead compute
 For example, in SQL, use:
 
 ```sql
-SELECT COUNT() FROM table WHERE position < $position
+SELECT COUNT(*) FROM table WHERE position < $position
 ```
 
 See also: `Cursors.toIndex`.
 
-_@param_ positions The target list's positions, in lexicographic order.
+_@param_ `positions` The target list's positions, in lexicographic order.
 There should be no duplicate positions.
 
 ### Class `Cursors`
@@ -228,7 +228,7 @@ or text string.
 
 A cursor points to a particular spot in a list, in between
 two list elements (or text characters). This class handles
-cursors for lists that use `PositionSource` position strings.
+cursors for lists that use our position strings.
 
 A cursor is represented as a string.
 Specifically, it is the position of the element
@@ -252,7 +252,7 @@ That is, the cursor is between the list elements at `index - 1` and `index`.
 If this method is inconvenient (e.g., the positions are in a database
 instead of an array), you can instead run the following algorithm yourself:
 
-- If `index` is 0, return `PositionSource.FIRST` (`""`).
+- If `index` is 0, return `PositionSource.FIRST = ""`.
 - Else return `positions[index - 1]`.
 
 _@param_ `positions` The target list's positions, in lexicographic order.
@@ -281,7 +281,7 @@ SELECT COUNT(*) FROM table WHERE position <= $position
 
 See also: `findPosition`.
 
-_@param_ positions The target list's positions, in lexicographic order.
+_@param_ `positions` The target list's positions, in lexicographic order.
 There should be no duplicate positions.
 
 ### Class `IDs`
@@ -297,12 +297,12 @@ static random(options?: { length?: number; chars?: string }): string
 Returns a cryptographically random ID made of alphanumeric characters.
 
 _@param_ `options.length` The length of the ID, in characters.
-Default: `DEFAULT_LENGTH`.
+Default: `IDs.DEFAULT_LENGTH`.
 
-_@param_ `options.chars` The characters to draw from. Default: `DEFAULT_CHARS`.
+_@param_ `options.chars` The characters to draw from. Default: `IDs.DEFAULT_CHARS`.
 
 If specified, only the first 256 elements are used, and you achieve
-about `floor(log_2(chars.length))` bits of entropy per `length`.
+about `log_2(chars.length)` bits of entropy per `length`.
 
 #### pseudoRandom
 
@@ -324,12 +324,12 @@ Pseudorandom IDs with a fixed seed are recommended for
 tests and benchmarks, to make them deterministic.
 
 _@param_ `options.length` The length of the ID, in characters.
-Default: `DEFAULT_LENGTH`.
+Default: `IDs.DEFAULT_LENGTH`.
 
-_@param_ `options.chars` The characters to draw from. Default: `DEFAULT_CHARS`.
+_@param_ `options.chars` The characters to draw from. Default: `IDs.DEFAULT_CHARS`.
 
 If specified, only the first 256 elements are used, and you achieve
-about `floor(log_2(chars.length))` bits of entropy per `length`.
+about `log_2(chars.length)` bits of entropy per `length`.
 
 #### validate
 
@@ -374,7 +374,7 @@ _Position string length_ is our main performance metric. This determines the mem
 
 To measure position string length in a realistic setting, we benchmark against [Martin Kleppmann's text trace](https://github.com/automerge/automerge-perf). That is, we pretend a user is typing into a collaborative text editor that attaches a position string to each character, then output statistics for those positions.
 
-For the complete trace (182k positions, 160k total edits) typed by a single `PositionSource`, the average position length is **34 characters**, and the max length is 56.
+For the complete trace (182k positions, 260k total edits) typed by a single `PositionSource`, the average position length is **34 characters**, and the max length is 56.
 
 For a more realistic scenario with 260 `PositionSource`s (a new one every 1,000 edits), the average position length is **112 characters**, and the max length is 238. "Rotating" `PositionSource`s in this way simulates the effect of multiple users, or a single user who occasionally reloads the page. (The extra length comes from referencing multiple [IDs](#properties) per position: an average of 8 IDs/position x 8 chars/ID = 64 chars/position.)
 
@@ -382,7 +382,7 @@ If we only consider the first 10,000 edits, the averages decrease to **24 charac
 
 More stats for these four scenarios are in [stats.md](https://github.com/mweidner037/position-strings/blob/master/stats.md). For full data, run `npm run benchmarks` (after `npm ci`) and look in `benchmark_results/`.
 
-### Considerations
+### Performance Considerations
 
 - In realistic scenarios with multiple `PositionSource`s, most of the positions' length comes from referencing [IDs](#properties). By default, IDs are 8 random alphanumeric characters to give a low probability of collisions, but you can pass your own shorter IDs to [`PositionSource`'s constructor](#constructor). For example, you could assign IDs sequentially from a server.
 - A set of positions from the same list compress reasonably well together, since they represent different paths in the same tree. In particular, a list's worth of positions should compress well under gzip or prefix compression. However, compressing individual positions is not recommended.

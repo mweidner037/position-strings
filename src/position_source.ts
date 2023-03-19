@@ -16,7 +16,7 @@ import { assert, LastInternal, precond } from "./util";
  *
  * `PositionSource` gives you such positions, in the form
  * of lexicographically-ordered strings. Specifically, `createBetween`
- * returns a new position string in between two existing position strings.
+ * returns a new "position string" in between two existing position strings.
  *
  * These strings have the bonus properties:
  * - 5. (Non-Interleaving) If two `PositionSource`s concurrently create a (forward or backward)
@@ -42,8 +42,8 @@ import { assert, LastInternal, precond } from "./util";
  * - [List CRDTs](https://mattweidner.com/2022/10/21/basic-list-crdt.html)
  * and how they map to position strings. `PositionSource` uses an optimized
  * variant of that link's string implementation.
- * - [Paper](https://www.repository.cam.ac.uk/handle/1810/290391) about
- * interleaving in collaborative text editors.
+ * - [Paper about interleaving](https://www.repository.cam.ac.uk/handle/1810/290391)
+ * in collaborative text editors.
  */
 export class PositionSource {
   /**
@@ -66,7 +66,7 @@ export class PositionSource {
   /**
    * Our waypoints' long name: `,${ID}.`.
    */
-  private readonly idName: string;
+  private readonly longName: string;
 
   /**
    * For each waypoint that we created, maps a prefix (see getPrefix)
@@ -83,7 +83,7 @@ export class PositionSource {
    *
    * For efficiency (shorter position strings),
    * within each JavaScript runtime, you should not use
-   * more than one `PositionSource` for the same document (list/text string).
+   * more than one `PositionSource` for the same document.
    * An exception is if multiple logical users share the same runtime;
    * we then recommend one `PositionSource` per user.
    *
@@ -107,7 +107,7 @@ export class PositionSource {
       IDs.validate(options.ID);
     }
     this.ID = options?.ID ?? IDs.random();
-    this.idName = `,${this.ID}.`;
+    this.longName = `,${this.ID}.`;
   }
 
   /**
@@ -115,7 +115,7 @@ export class PositionSource {
    * (`left < new < right`).
    *
    * The new position is unique across the entire collaborative application,
-   * even in the face on concurrent calls to this method on other
+   * even in the face of concurrent calls to this method on other
    * `PositionSource`s.
    *
    * @param left Defaults to `PositionSource.FIRST` (insert at the beginning).
@@ -129,8 +129,9 @@ export class PositionSource {
     precond(left < right, "left must be less than right:", left, "!<", right);
     precond(
       right <= PositionSource.LAST,
-      "right must be less than or equal to LAST",
+      "right must be less than or equal to LAST:",
       right,
+      "!<=",
       PositionSource.LAST
     );
 
@@ -143,14 +144,14 @@ export class PositionSource {
       rightFixed !== null &&
       (leftFixed === null || rightFixed.startsWith(leftFixed))
     ) {
-      // Left child of right. This always uses a new waypoint.
+      // Left child of right. This always appends a waypoint.
       const ancestor = leftVersion(rightFixed);
-      ans = this.withNewWaypoint(ancestor);
+      ans = this.appendWaypoint(ancestor);
     } else {
       // Right child of left.
       if (leftFixed === null) {
         // ancestor is FIRST.
-        ans = this.withNewWaypoint(PositionSource.FIRST);
+        ans = this.appendWaypoint(PositionSource.FIRST);
       } else {
         // Check if we can reuse left's prefix.
         // It needs to be one of ours, and right can't use the same
@@ -167,8 +168,8 @@ export class PositionSource {
           ans = prefix + stringifyBase52(valueSeq);
           this.lastValueSeqs.set(prefix, valueSeq);
         } else {
-          // New waypoint.
-          ans = this.withNewWaypoint(leftFixed);
+          // Append waypoint.
+          ans = this.appendWaypoint(leftFixed);
         }
       }
     }
@@ -178,24 +179,23 @@ export class PositionSource {
   }
 
   /**
-   * Creates (& stores) a new waypoint with the given ancestor (= prefix
-   * adjusted for side), returning the position.
+   * Appends a wayoint to the given ancestor (= prefix adjusted for
+   * side), returning a unique new position using that waypoint.
    *
-   * Except, if there's already an identical waypoint (which neither left
-   * nor right uses), reuse it with the next valueIndex.
+   * lastValueSeqs is also updated as needed for the waypoint.
    */
-  private withNewWaypoint(ancestor: string): string {
-    let waypointName = this.idName;
+  private appendWaypoint(ancestor: string): string {
+    let waypointName = this.longName;
     // If our ID already appears in ancestor, instead use a short
     // name for the waypoint.
     // Here we use the uniqueness of ',' and '.' to
-    // claim that if this.idName (= `,${ID}.`) appears in ancestor, then it
+    // claim that if this.longName (= `,${ID}.`) appears in ancestor, then it
     // must actually be from a waypoint that we created.
-    const existing = ancestor.lastIndexOf(this.idName);
+    const existing = ancestor.lastIndexOf(this.longName);
     if (existing !== -1) {
       // Find the index of existing among the long-name
       // waypoints, in backwards order. Here we use the fact that
-      // each idName ends with '.' and that '.' does not appear otherwise.
+      // each longName ends with '.' and that '.' does not appear otherwise.
       let index = -1;
       for (let i = existing; i < ancestor.length; i++) {
         if (ancestor[i] === ".") index++;
@@ -205,8 +205,7 @@ export class PositionSource {
 
     const prefix = ancestor + waypointName;
     const lastValueSeq = this.lastValueSeqs.get(prefix);
-    // Unless we're in the exception case (reuse), start at valueSeq
-    // 1 (right side).
+    // Use next odd (right-side) valueSeq (1 if it's a new waypoint).
     const valueSeq =
       lastValueSeq === undefined ? 1 : nextOddValueSeq(lastValueSeq);
     this.lastValueSeqs.set(prefix, valueSeq);
@@ -240,9 +239,9 @@ function getPrefix(position: string): string {
  * I.e., the ancestor for position's left descendants.
  */
 function leftVersion(position: string) {
-  const last = parseBase52(position[position.length - 1]);
   // We need to subtract one from the (odd) valueSeq, equivalently, from
   // its last base52 digit.
+  const last = parseBase52(position[position.length - 1]);
   assert(last % 2 === 1, "Bad valueSeq (not a position?)", last, position);
   return position.slice(0, -1) + stringifyBase52(last - 1);
 }
@@ -254,15 +253,14 @@ function leftVersion(position: string) {
  */
 function stringifyShortName(n: number): string {
   if (n < 10) return String.fromCharCode(48 + n);
-  else {
+  else
     return (
       stringifyBase52(Math.floor(n / 10)) + String.fromCharCode(48 + (n % 10))
     );
-  }
 }
 
 /**
- * Base 52 encoding using letters (where value order = string order).
+ * Base 52 encoding using letters (with "digits" in order by code point).
  */
 function stringifyBase52(n: number): string {
   if (n === 0) return "A";
@@ -294,8 +292,8 @@ const log52 = Math.log(52);
  *
  * The sequence has the following properties:
  * 1. Each number is a nonnegative integer (however, not all
- * such integers are enumerated).
- * 2. The number's base-52 representations are enumerated in
+ * nonnegative integers are enumerated).
+ * 2. The numbers' base-52 representations are enumerated in
  * lexicographic order, with no prefixes (i.e., no string
  * representation is a prefix of another).
  * 3. The n-th enumerated number has O(log(n)) base-52 digits.
@@ -306,7 +304,7 @@ const log52 = Math.log(52);
  * the numbers are in order by magnitude, although we do not
  * use this property.
  *
- * The specific sequence is the following one:
+ * The specific sequence is as follows:
  * - Start with 0.
  * - Enumerate 26^1 numbers (A, B, ..., Z).
  * - Add 1, multiply by 52, then enumerate 26^2 numbers
