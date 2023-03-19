@@ -109,9 +109,9 @@ export class IDs {
    * - It does not contain `','` or `'.'`.
    * - The first character is lexicographically less than `'~'` (code point 126).
    */
-  static validate(id: string): void {
-    precond(id < LastInternal, "ID must be less than", LastInternal, ":", id);
-    precond(!id.includes(","), "ID must not contain ',':", id);
-    precond(!id.includes("."), "ID must not contain '.':", id);
+  static validate(ID: string): void {
+    precond(ID < LastInternal, "ID must be less than", LastInternal, ":", ID);
+    precond(!ID.includes(","), "ID must not contain ',':", ID);
+    precond(!ID.includes("."), "ID must not contain '.':", ID);
   }
 }
