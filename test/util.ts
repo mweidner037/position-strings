@@ -13,7 +13,7 @@ export function newSources(
   count: number
 ): PositionSource[] {
   const sources: PositionSource[] = [];
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < count; i++) {
     sources.push(new PositionSource({ ID: IDs.pseudoRandom(rng) }));
   }
   return sources;
