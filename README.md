@@ -56,6 +56,7 @@ Also, the special string `PositionSource.LAST` is `'~'`.
   [algorithm.md](https://github.com/mweidner037/position-strings/blob/master/algorithm.md).
 - [Paper about interleaving](https://www.repository.cam.ac.uk/handle/1810/290391)
   in collaborative text editors.
+- [list-positions](https://github.com/mweidner037/list-positions/tree/master/#readme), a similar but more comprehensive library. It provides helper data structures (e.g., a `List<T>` class) and more efficient usage options.
 
 ## Usage
 
